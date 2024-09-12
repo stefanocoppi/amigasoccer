@@ -1,0 +1,36 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "amiga-assembly",
+            "request": "launch",
+            "name": "WinUAE Debug",
+            "stopOnEntry": true,
+            "program": "${workspaceFolder}/uae/dh0/hello",
+            "remoteProgram": "SYS:hello",
+            "emulatorType": "winuae",
+            "emulatorArgs": [
+                "-r",
+                "C:/Users/stefano.coppi/Downloads/winuae/Kickstart-v3.1-rev40.63.rom",
+                "-s",
+                "filesystem=rw,dh0:${workspaceFolder}/uae/dh0",
+            ],
+            "preLaunchTask": "amigaassembly: build"
+        },
+        {
+            "type": "amiga-assembly",
+            "request": "launch",
+            "name": "FS-UAE Debug",
+            "stopOnEntry": true,
+            "program": "${workspaceFolder}/uae/dh0/hello",
+            "remoteProgram": "SYS:hello",
+            "emulatorType": "fs-uae",
+            "emulatorArgs": [
+                "--hard_drive_0=${workspaceFolder}/uae/dh0",
+                "--automatic_input_grab=0",
+                "--kickstart_file=C:/Users/stefano.coppi/Downloads/winuae/Kickstart-v3.1-rev40.63.rom"
+            ],
+            "preLaunchTask": "amigaassembly: build"
+        }
+    ]
+}
