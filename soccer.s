@@ -13,8 +13,8 @@ CloseLibrary     EQU -$19e
                      ;5432109876543210
 DMASET           EQU %1000001111000000                                            ; copper,bitplane,blitter DMA
 N_PLANES         EQU 4                                                            ; numero di bitplanes
-PITCH_WIDTH      EQU 672
-PITCH_HEIGHT     EQU 880
+PITCH_WIDTH      EQU 640
+PITCH_HEIGHT     EQU 817
 PLAYFIELD_WIDTH  EQU 352
 PLAYFIELD_HEIGHT EQU 256
 PITCH_PLANE_SIZE EQU (PITCH_WIDTH/8)*PITCH_HEIGHT
@@ -218,10 +218,10 @@ copperlist:
  
 
   ; palette
-             dc.w       $0180,$0111,$0182,$0350,$0184,$0620,$0186,$0554
-             dc.w       $0188,$000F,$018A,$046B,$018C,$00E0,$018E,$0690
-             dc.w       $0190,$009F,$0192,$0B40,$0194,$0E00,$0196,$0F60
-             dc.w       $0198,$0990,$019A,$0FF0,$019C,$0999,$019E,$0EEE
+             dc.w       $0180,$0790,$0182,$0999,$0184,$0FFF,$0186,$0000
+             dc.w       $0188,$0721,$018A,$0A40,$018C,$0F71,$018E,$0690
+             dc.w       $0190,$0030,$0192,$0990,$0194,$0F00,$0196,$000F
+             dc.w       $0198,$088F,$019A,$0380,$019C,$0FF0,$019E,$0000
 
 bplpointers:
              dc.w       $e0,$0000,$e2,$0000                                       ; BPL0PT
@@ -239,7 +239,13 @@ bplpointers:
 
 
 pitch:
-             incbin     "pitch1.raw"                                              ; immagine del campo 672 x 880, 4 bpp
+             incbin     "gfx/pitch_complete.raw"                                  ; immagine del campo 640 x 817, 4 bpp
+
+player_vertical:
+             incbin     "gfx/player_vertical_final.raw"                           ; spritesheet del giocatore con maglia verticale 320 x 100
+player_vertical_mask:
+             incbin     "gfx/player_vertical_final.mask"
+
 
              SECTION    dati_azzerati,BSS_C                                       ; sezione contenente i dati azzerati
   
