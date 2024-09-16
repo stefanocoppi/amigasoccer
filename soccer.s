@@ -4,25 +4,35 @@
              include    "hw.i"
 
 ; costanti
-ExecBase         EQU $4
-Disable          EQU -$78
-Enable           EQU -$7e
-OpenLibrary      EQU -$198
-CloseLibrary     EQU -$19e
+ExecBase             EQU $4
+Disable              EQU -$78
+Enable               EQU -$7e
+OpenLibrary          EQU -$198
+CloseLibrary         EQU -$19e
 
                      ;5432109876543210
-DMASET           EQU %1000001111000000                                            ; copper,bitplane,blitter DMA
-N_PLANES         EQU 4                                                            ; numero di bitplanes
-PITCH_WIDTH      EQU 640
-PITCH_HEIGHT     EQU 817
-PLAYFIELD_WIDTH  EQU 352
-PLAYFIELD_HEIGHT EQU 256
-PITCH_PLANE_SIZE EQU (PITCH_WIDTH/8)*PITCH_HEIGHT
-PITCH_ROW_SIZE   EQU (PITCH_WIDTH/8)
-PLF_PLANE_SIZE   EQU (PLAYFIELD_WIDTH/8)*PLAYFIELD_HEIGHT
-CAMERA_YMAX      EQU PITCH_HEIGHT-PLAYFIELD_HEIGHT
-CAMERA_XMAX      EQU PITCH_WIDTH-PLAYFIELD_WIDTH
-CAMERA_SPEED     EQU 1
+DMASET               EQU %1000001111000000                                        ; copper,bitplane,blitter DMA
+N_PLANES             EQU 4                                                        ; numero di bitplanes
+PITCH_WIDTH          EQU 640
+PITCH_HEIGHT         EQU 817
+PLAYFIELD_WIDTH      EQU 352
+PLAYFIELD_HEIGHT     EQU 256
+PLAYFIELD_ROW_SIZE   EQU (PLAYFIELD_WIDTH/8)
+PITCH_PLANE_SIZE     EQU (PITCH_WIDTH/8)*PITCH_HEIGHT
+PITCH_ROW_SIZE       EQU (PITCH_WIDTH/8)
+PLF_PLANE_SIZE       EQU (PLAYFIELD_WIDTH/8)*PLAYFIELD_HEIGHT
+CAMERA_YMAX          EQU PITCH_HEIGHT-PLAYFIELD_HEIGHT
+CAMERA_XMAX          EQU PITCH_WIDTH-PLAYFIELD_WIDTH
+CAMERA_SPEED         EQU 1
+SPRITESHEET_W        EQU 320
+SPRITESHEET_H        EQU 100
+SPRITESHEET_ROW_SIZE EQU (320/8)
+PLAYER_WIDTH         EQU 16
+PLAYER_HEIGHT        EQU 20
+SPR_PLANE_SIZE       EQU (SPRITESHEET_W/8)*SPRITESHEET_H 
+
+
+ 
 
              SECTION    codice,CODE 
 
@@ -57,6 +67,8 @@ wait:
              bsr        swap_buffers
              bsr        read_joy
              bsr        draw_pitch
+
+             bsr        draw_player
 
              btst       #6,$bfe001                                                ; tasto sinistro del mouse premuto?
              bne        mainloop                                                  ; se no, torna a waitline
@@ -182,6 +194,82 @@ swap_buffers:
              add.l      #8,a1                                                     ; punta al bplpointer successivo
              dbra       d1,.loop                                                  ; ripete il loop per tutti i piani
              rts
+
+
+              
+
+;**************************************************************************************************************************************************************************
+; Disegna uno sprite sul draw_buffer.
+; L'immagine dello sprite viene copiata da uno spritesheet.
+;
+; d0.w coordinata x 
+; d1.w coordinata y
+; d3.w colonna dello spritesheet
+; d4.w riga dello spritesheet
+; a1 indirizzo dello spritesheet
+; a2 indirizzo delle maschere
+;**************************************************************************************************************************************************************************
+draw_sprite:
+            
+             move.l     draw_buffer,a0
+             mulu.w     #PLAYFIELD_ROW_SIZE,d1                                    ; calcolo offset_y = PLAYFIELD_ROW_SIZE * y
+             add.w      d1,a0                                                     ; sommo offset_y ad a0
+             move       d0,d1
+             and.w      #$000f,d0                                                 ; seleziono i primi 4 bit che rappresentano lo shift
+             lsl.w      #8,d0                                                     ; sposto i bit di shift nel nibble più significativo
+             lsl.w      #4,d0
+             move.w     d0,d2
+             or.w       #$0fca,d0                                                 ; inserisco i bit dello shift nel valore da assegnare a BPLCON0
+             lsr.w      #3,d1                                                     ; calcolo offset_x = x/8
+             and.w      #$fffe,d1                                                 ; rendo pari l'indirizzo
+             add.w      d1,a0
+             mulu       #(PLAYER_WIDTH/8),d3                                      ; offset_x = colonna * (PLAYER_WIDTH/8)
+             add.w      d3,a1
+             add.w      d3,a2
+             mulu       #PLAYER_HEIGHT,d4
+             mulu       #SPRITESHEET_ROW_SIZE,d4                                  ; offset_y = riga * PLAYER_HEIGHT * SPRITESHEET_ROW_SIZE
+             add.w      d4,a1
+             add.w      d4,a2
+             moveq      #N_PLANES-1,d7
+.planeloop:
+             btst.b     #6,DMACONR(a5)                                            ; lettura dummy
+.bltbusy     btst.b     #6,DMACONR(a5)                                            ; blitter pronto?
+             bne        .bltbusy
+             move.w     #$ffff,BLTAFWM(a5)                                        ; nessuna maschera
+             move.w     #$0000,BLTALWM(a5)                                        ; maschera sull'ultima word
+             move.w     d0,BLTCON0(a5)                                            
+             move.w     d2,BLTCON1(a5)
+             move.w     #(SPRITESHEET_W-PLAYER_WIDTH-16)/8,BLTAMOD(a5)
+             move.w     #(SPRITESHEET_W-PLAYER_WIDTH-16)/8,BLTBMOD(a5)
+             move.w     #(PLAYFIELD_WIDTH-PLAYER_WIDTH-16)/8,BLTCMOD(a5)
+             move.w     #(PLAYFIELD_WIDTH-PLAYER_WIDTH-16)/8,BLTDMOD(a5)
+             move.l     a2,BLTAPT(a5)
+             move.l     a1,BLTBPT(a5)
+             move.l     a0,BLTCPT(a5)
+             move.l     a0,BLTDPT(a5)
+             move.w     #PLAYER_HEIGHT<<6+(PLAYER_WIDTH+16)/16,BLTSIZE(a5)
+             move.l     a0,d1
+             add.l      #PLF_PLANE_SIZE,d1                                        ; punto al bitplane successivo
+             move.l     d1,a0
+             move.l     a1,d1
+             add.l      #SPR_PLANE_SIZE,d1
+             move.l     d1,a1
+             dbra       d7,.planeloop
+             rts
+
+
+;**************************************************************************************************************************************************************************
+; Disegna un calciatore.
+;**************************************************************************************************************************************************************************
+draw_player:
+             move.w     #16,d0                                                    ; coordinata x
+             move.w     #(256-20),d1                                              ; coordinata y
+             move.w     #3,d3                                                     ; colonna dello spritesheet
+             move.w     #2,d4                                                     ; riga dello spritesheet
+             lea        player_vertical,a1                                        ; indirizzo spritesheet
+             lea        player_vertical_mask,a2                                   ; indirizzo maschere
+             bsr        draw_sprite
+             rts  
 
 
 ; variabili
