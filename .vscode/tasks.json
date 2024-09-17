@@ -9,7 +9,8 @@
 				"args": [
 					"-m68000",
 					"-Fhunk",
-					"-linedebug"
+					"-linedebug",
+					"-ldots"
 				]
 			},
 			"vlink": {
