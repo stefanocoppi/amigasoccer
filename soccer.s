@@ -95,7 +95,7 @@ wait:
                bne.s      wait
 
                bsr        swap_buffers
-               bsr        read_joy
+               bsr        read_joy2
                bsr        draw_pitch
 
                bsr        update_player
@@ -132,6 +132,12 @@ init_bplpointers:
 
 ; disegna il campo di gioco usando il blitter.
 draw_pitch:
+               move.w     camera_x,d0                                               ; trasforma da coordinate camera a viewport
+               sub.w      #VIEWPORT_WIDTH/2,d0
+               move.w     d0,viewport_x
+               move.w     camera_y,d0
+               sub.w      #VIEWPORT_HEIGHT/2,d0
+               move.w     d0,viewport_y
                moveq      #N_PLANES-1,d7
                move.l     #pitch,d0
                move.w     viewport_y,d1
@@ -217,6 +223,54 @@ read_joy:
                move.w     camera_y,d0
                sub.w      #VIEWPORT_HEIGHT/2,d0
                move.w     d0,viewport_y
+               rts
+
+
+;**************************************************************************************************************************************************************************
+; legge il joystick e muove il calciatore.
+;**************************************************************************************************************************************************************************
+read_joy2:
+               move.w     JOY1DAT(a5),d3
+               btst.l     #1,d3                                                     ; joy a destra?
+               beq.s      .checksx
+               add.w      #1,joy_state  
+               bra        .checkup
+.checksx:
+               btst.l     #9,d3                                                     ; joy a sinistra?
+               beq.s      .checkup
+               add.w      #2,joy_state
+.checkup:
+               move.w     d3,d2
+               lsr.w      #1,d2                                                     ; il bit 9 di JOY1DAT è in posizione 8 in d2
+               eor.w      d2,d3                                                     ; eor tra il bit 8 e il 9 di JOY1DAT
+               btst.l     #8,d3                                                     ; joy in alto?
+               beq.s      .check_down                                               
+               add.w      #%100,joy_state 
+               bra.s      .end
+.check_down:
+               btst.l     #0,d3                                                     ; joy in basso?
+               beq.s      .end                                                      
+               add.w      #%1000,joy_state
+.end 
+               lea        player0,a0                                                ; imposta l'angolo del calciatore in base al movimento del joystick
+               cmp        #1,joy_state                                              ; joy a dx?
+               beq        .setdx
+               cmp        #2,joy_state                                              ; joy a sx?
+               beq        .setsx
+               bra        .return
+.setdx:
+               move.w     #0,player.a(a0)
+               bra        .return
+.setsx:
+               move.w     #180,player.a(a0)
+               bra        .return
+               move.w     camera_x,d0                                               ; trasforma da coordinate camera a viewport
+              ;  sub.w      #VIEWPORT_WIDTH/2,d0
+              ;  move.w     d0,viewport_x
+              ;  move.w     camera_y,d0
+              ;  sub.w      #VIEWPORT_HEIGHT/2,d0
+              ;  move.w     d0,viewport_y
+.return:
                rts
 
 
@@ -368,6 +422,7 @@ camera_y       dc.w       0
 view_buffer    dc.l       playfield1                                                ; buffer visualizzato sullo schermo
 draw_buffer    dc.l       playfield2                                                ; buffer di disegno (non visibile)
 
+joy_state      dc.w       0                                                         ; stato dello joystick
 
 player0        dc.w       0<<6                                                      ; posizione x
                dc.w       0<<6                                                      ; posizione y
