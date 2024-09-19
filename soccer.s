@@ -132,7 +132,7 @@ wait:
 
 
 ;**************************************************************************************************************************************************************************
-; Subruotine
+; Subroutine
 ;**************************************************************************************************************************************************************************
 
 ;**************************************************************************************************************************************************************************
@@ -206,6 +206,9 @@ draw_pitch:
                     rts
 
 
+;**************************************************************************************************************************************************************************
+; legge il joystick e muove la camera
+;**************************************************************************************************************************************************************************
 read_joy:
                     move.w     JOY1DAT(a5),d3
                     btst.l     #1,d3                                                     ; joy a destra?
@@ -255,6 +258,7 @@ read_joy:
 ; legge il joystick e aggiorna la variabile joy_state
 ;**************************************************************************************************************************************************************************
 read_joy2:
+                    clr.w      joy_state                                                 ; azzero lo stato del joy
                     move.w     JOY1DAT(a5),d3
                     btst.l     #1,d3                                                     ; joy a destra?
                     beq.s      .checksx
@@ -277,25 +281,12 @@ read_joy2:
                     beq.s      .end                                                      
                     add.w      #%1000,joy_state
 .end 
-                    lea        player0,a0                                                ; imposta l'angolo del calciatore in base al movimento del joystick
-                    cmp        #1,joy_state                                              ; joy a dx?
-                    beq        .setdx
-                    cmp        #2,joy_state                                              ; joy a sx?
-                    beq        .setsx
-                    bra        .return
-.setdx:
-                    move.w     #0,player.a(a0)
-                    bra        .return
-.setsx:
-                    move.w     #180,player.a(a0)
-                    bra        .return
               ;      move.w     camera_x,d0                                               ; trasforma da coordinate camera a viewport
               ;  sub.w      #VIEWPORT_WIDTH/2,d0
               ;  move.w     d0,viewport_x
               ;  move.w     camera_y,d0
               ;  sub.w      #VIEWPORT_HEIGHT/2,d0
               ;  move.w     d0,viewport_y
-.return:
                     rts
 
 
@@ -445,20 +436,33 @@ process_player_state:
 
 
 ;**************************************************************************************************************************************************************************
-; Aggiorna l'input del giocatore
+; Aggiorna l'input del calciatore
 ;**************************************************************************************************************************************************************************
 update_player_input:
                     lea        player0,a0
                     lea        player.inputdevice(a0),a1
                     move.w     player.inputtype(a0),d0
-                    cmp.w      #INPUT_TYPE_JOY,d0
+                    cmp.w      #INPUT_TYPE_JOY,d0                                        ; l'input_type è joystick?
                     beq        .joy
 .joy:
+                    ; in base allo stato del joystick, imposta angolo e value dell'input_device del calciatore
                     move.w     joy_state,d0
                     cmp.w      #1,d0                                                     ; joy a dx?
                     beq        .dx
                     cmp.w      #2,d0                                                     ; joy a sx?
                     beq        .sx
+                    cmp.w      #%100,d0                                                  ; joy in alto?
+                    beq        .up
+                    cmp.w      #%1000,d0                                                 ; joy in basso?
+                    beq        .down
+                    cmp.w      #%101,d0                                                  ; joy in alto a dx?
+                    beq        .updx
+                    cmp.w      #%110,d0                                                  ; joy in alto a sx?
+                    beq        .upsx
+                    cmp.w      #%1001,d0                                                 ; joy in basso a dx?
+                    beq        .downdx
+                    cmp.w      #%1010,d0                                                 ; joy in basso a sx?
+                    beq        .downsx
                     move.w     #0,inputdevice.value(a1)
                     bra        .return
 .dx:
@@ -468,6 +472,30 @@ update_player_input:
 .sx:
                     move.w     #1,inputdevice.value(a1)
                     move.w     #180,inputdevice.angle(a1)
+                    bra        .return
+.up:
+                    move.w     #1,inputdevice.value(a1)
+                    move.w     #270,inputdevice.angle(a1)
+                    bra        .return
+.down:
+                    move.w     #1,inputdevice.value(a1)
+                    move.w     #90,inputdevice.angle(a1)
+                    bra        .return
+.updx:
+                    move.w     #1,inputdevice.value(a1)
+                    move.w     #315,inputdevice.angle(a1)
+                    bra        .return
+.upsx:
+                    move.w     #1,inputdevice.value(a1)
+                    move.w     #225,inputdevice.angle(a1)
+                    bra        .return
+.downdx:
+                    move.w     #1,inputdevice.value(a1)
+                    move.w     #45,inputdevice.angle(a1)
+                    bra        .return
+.downsx:
+                    move.w     #1,inputdevice.value(a1)
+                    move.w     #135,inputdevice.angle(a1)
                     bra        .return
 .return:
                     rts
