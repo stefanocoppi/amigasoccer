@@ -26,7 +26,7 @@ PITCH_WIDTH           EQU 640
 PITCH_HEIGHT          EQU 817
 PLAYFIELD_WIDTH       EQU 352
 PLAYFIELD_VIS_W       EQU 320
-PLAYFIELD_HEIGHT      EQU 256
+PLAYFIELD_HEIGHT      EQU 256+2*PLAYER_HEIGHT
 PLAYFIELD_ROW_SIZE    EQU (PLAYFIELD_WIDTH/8)
 PITCH_PLANE_SIZE      EQU (PITCH_WIDTH/8)*PITCH_HEIGHT
 PITCH_ROW_SIZE        EQU (PITCH_WIDTH/8)
@@ -183,6 +183,7 @@ draw_pitch:
                     lsl.w      #4,d3
                     or.w       #$09f0,d3                                                 ; inserisco i 4 bit nel valore da assegnare ad BLTCON0
                     move.l     draw_buffer,a1
+                    add.l      #PLAYER_HEIGHT*PLAYFIELD_ROW_SIZE,a1                      ; salto la parte non visibile
 .planeloop:
                     btst.b     #6,DMACONR(a5)                                            ; lettura dummy
 .bltbusy            btst.b     #6,DMACONR(a5)                                            ; blitter pronto?
@@ -195,7 +196,7 @@ draw_pitch:
                     move.w     #0,BLTCON1(a5)
                     move.w     #(PITCH_WIDTH-22*16)/8,BLTAMOD(a5)
                     move.w     #(PLAYFIELD_WIDTH-22*16)/8,BLTDMOD(a5)
-                    move.w     #PLAYFIELD_HEIGHT<<6+22,BLTSIZE(a5)
+                    move.w     #VIEWPORT_HEIGHT<<6+22,BLTSIZE(a5)
                     move.l     a0,d0
                     add.l      #PITCH_PLANE_SIZE,d0
                     move.l     d0,a0
@@ -297,6 +298,7 @@ swap_buffers:
                     move.l     draw_buffer,d0                                            ; scambia i valori di draw_buffer e view_buffer
                     move.l     view_buffer,draw_buffer
                     move.l     d0,view_buffer
+                    add.l      #PLAYER_HEIGHT*PLAYFIELD_ROW_SIZE,d0                      ; la parte visibile del playfield inizia PLAYER_HEIGHT pixel dopo per consentire il clipping verticale degli sprite
                     lea        bplpointers,a1                                            
                     moveq      #N_PLANES-1,d1                                            
 .loop:
@@ -324,18 +326,18 @@ swap_buffers:
 draw_sprite:
             
                     move.l     draw_buffer,a0
+                    sub.w      #PLAYER_WIDTH/2,d0                                        ; porto l'origine al centro
                     sub.w      viewport_x,d0                                             ; converto da coordinate globali in coordinate locali alla viewport
                     cmp.w      #-16,d0
                     blt        .return                                                   ; se x < viewport_x - 16 , allora sprite fuori dalla viewport, non lo disegno
                     cmp.w      #PLAYFIELD_VIS_W+16,d0                                    ; se x >= viewport_x + PLAYFIELD_VIS_W+16 allora
                     bge        .return                                                   ; sprite fuori dalla viewport, non lo disegno
                     add.w      #16,d0                                                    ; tiene conto dei 16 px non visibili per lo scroll
-                    sub.w      #PLAYER_WIDTH/2,d0                                        ; porto l'origine deal centro
+                    sub.w      #PLAYER_HEIGHT,d1                                         ; porto l'origine del giocatore in basso
                     sub.w      viewport_y,d1
                     blt        .return                                                   ; se y < viewport_y non disegno lo sprite perchè non è visibile
-                    cmp.w      #PLAYFIELD_HEIGHT-16,d1
+                    cmp.w      #VIEWPORT_HEIGHT+PLAYER_HEIGHT,d1
                     bge        .return                                                   ; se y >= viewport_y + PLAYFIELD_HEIGHT allora non è visibile e non lo disegno
-                    sub.w      #PLAYER_HEIGHT,d1                                         ; porto l'origine del giocatore in alto
                     mulu.w     #PLAYFIELD_ROW_SIZE,d1                                    ; calcolo offset_y = PLAYFIELD_ROW_SIZE * y
                     add.w      d1,a0                                                     ; sommo offset_y ad a0
                     move       d0,d1
