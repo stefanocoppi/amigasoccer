@@ -90,7 +90,7 @@ start:
                     move.l     d0,gfx_base                                               ; salviamo l'indirizzo base della graphics.library
                     move.l     d0,a6
                     move.l     $26(a6),old_cop                                           ; salviamo l'indirizzo della copperlist di sistema
-             ;bsr        init_bplpointers                                          ; inizializzamo i bplpointer per puntare alla nostra immagine del campo
+                    bsr        init_bplpointers                                          ; inizializzamo i bplpointer per puntare alla nostra immagine del campo
                     lea        CUSTOM,a5
           
                     move.w     #DMASET,DMACON(a5)
@@ -111,10 +111,10 @@ wait:
                     bne.s      wait
 
                     bsr        swap_buffers
-                    bsr        read_joy2
-                    bsr        draw_pitch
-
+                    bsr        read_joy
                     bsr        update_player
+                    bsr        update_camera
+                    bsr        draw_pitch
                     bsr        draw_player
 
                     btst       #6,$bfe001                                                ; tasto sinistro del mouse premuto?
@@ -208,9 +208,46 @@ draw_pitch:
 
 
 ;**************************************************************************************************************************************************************************
-; legge il joystick e muove la camera
+; aggiorna la posizione della telecamera
 ;**************************************************************************************************************************************************************************
-read_joy:
+update_camera:
+                    lea        player0,a0
+                    move.w     player.x(a0),d0                                           ; coordinata x in formato fixed 10.6
+                    asr.w      #6,d0                                                     ; converte in int
+                    move.w     d0,camera_x
+                    move.w     player.y(a0),d0                                           ; coordinata y in formato fixed 10.6
+                    asr.w      #6,d0                                                     ; converte in int
+                    move.w     d0,camera_y
+                    ; limita il movimento della cam entro il campo di gioco
+                    cmp.w      #CAMERA_XMIN,camera_x
+                    ble        .minx
+                    cmp.w      #CAMERA_XMAX,camera_x
+                    bge        .maxx
+.checky:
+                    cmp.w      #CAMERA_YMIN,camera_y
+                    ble        .miny
+                    cmp.w      #CAMERA_YMAX,camera_y
+                    bge        .maxy
+                    bra        .return
+.minx:
+                    move.w     #CAMERA_XMIN,camera_x
+                    bra        .checky
+.maxx:
+                    move.w     #CAMERA_XMAX,camera_x
+                    bra        .checky
+.miny:
+                    move.w     #CAMERA_YMIN,camera_y
+                    bra        .return
+.maxy:
+                    move.w     #CAMERA_YMAX,camera_y
+.return:
+                    rts
+
+
+;**************************************************************************************************************************************************************************
+; legge il joystick e muove la camera: non serve più
+;**************************************************************************************************************************************************************************
+read_joy2:
                     move.w     JOY1DAT(a5),d3
                     btst.l     #1,d3                                                     ; joy a destra?
                     beq.s      .checksx
@@ -258,7 +295,7 @@ read_joy:
 ;**************************************************************************************************************************************************************************
 ; legge il joystick e aggiorna la variabile joy_state
 ;**************************************************************************************************************************************************************************
-read_joy2:
+read_joy:
                     clr.w      joy_state                                                 ; azzero lo stato del joy
                     move.w     JOY1DAT(a5),d3
                     btst.l     #1,d3                                                     ; joy a destra?
@@ -282,12 +319,6 @@ read_joy2:
                     beq.s      .end                                                      
                     add.w      #%1000,joy_state
 .end 
-              ;      move.w     camera_x,d0                                               ; trasforma da coordinate camera a viewport
-              ;  sub.w      #VIEWPORT_WIDTH/2,d0
-              ;  move.w     d0,viewport_x
-              ;  move.w     camera_y,d0
-              ;  sub.w      #VIEWPORT_HEIGHT/2,d0
-              ;  move.w     d0,viewport_y
                     rts
 
 
@@ -333,7 +364,6 @@ draw_sprite:
                     cmp.w      #PLAYFIELD_VIS_W+16,d0                                    ; se x >= viewport_x + PLAYFIELD_VIS_W+16 allora
                     bge        .return                                                   ; sprite fuori dalla viewport, non lo disegno
                     add.w      #16,d0                                                    ; tiene conto dei 16 px non visibili per lo scroll
-                    sub.w      #PLAYER_HEIGHT,d1                                         ; porto l'origine del giocatore in basso
                     sub.w      viewport_y,d1
                     blt        .return                                                   ; se y < viewport_y non disegno lo sprite perchè non è visibile
                     cmp.w      #VIEWPORT_HEIGHT+PLAYER_HEIGHT,d1
