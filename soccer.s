@@ -40,15 +40,19 @@ CAMERA_YMAX           EQU PITCH_HEIGHT-PITCH_ORIGIN_Y-(VIEWPORT_HEIGHT/2)
 CAMERA_XMIN           EQU -PITCH_ORIGIN_X+(VIEWPORT_WIDTH/2)
 CAMERA_XMAX           EQU PITCH_WIDTH-PITCH_ORIGIN_X-(VIEWPORT_WIDTH/2)
 CAMERA_SPEED          EQU 4
-SPRITESHEET_W         EQU 128
-SPRITESHEET_H         EQU 80
-SPRITESHEET_ROW_SIZE  EQU (SPRITESHEET_W/8)
+SPRITESHEET_PLAYER_W  EQU 128
+SPRITESHEET_PLAYER_H  EQU 80
 PLAYER_WIDTH          EQU 16
 PLAYER_HEIGHT         EQU 20
-SPR_PLANE_SIZE        EQU (SPRITESHEET_W/8)*SPRITESHEET_H 
 PLAYER_STATE_STANDRUN EQU 0
 INPUT_TYPE_JOY        EQU 0
 INPUT_TYPE_AI         EQU 1
+BALL_WIDTH            EQU 16
+BALL_HEIGHT           EQU 4
+SPRITESHEET_BALL_W    EQU 80
+SPRITESHEET_BALL_H    EQU 4
+GRAVITY               EQU 128                                                             ; 2.0
+BOUNCE                EQU 51                                                              ; 0.8 in fixed 10.6
 
 
 ;**************************************************************************************************************************************************************************
@@ -77,6 +81,22 @@ player.length        rs.b       0
 inputdevice.value    rs.w       1                                                         ; un valore <> 0 indica che è stato mosso in una direzione
 inputdevice.angle    rs.w       1                                                         ; angolo in cui la leva è stata spostata (0-359)
 inputdevice.length   rs.b       0 
+
+
+; palla
+                     rsreset
+ball.x               rs.w       1                                                         ; posizione (in formato fixed 10.6)
+ball.y               rs.w       1
+ball.z               rs.w       1
+ball.v               rs.w       1                                                         ; velocità su x e y
+ball.vz              rs.w       1                                                         ; velocità verticale
+ball.a               rs.w       1                                                         ; angolo di orientamento (gradi)
+ball.s               rs.w       1                                                         ; spin
+ball.animx           rs.w       1                                                         ; colonna dello spritesheet
+ball.animy           rs.w       1                                                         ; riga dello spritesheet
+ball.f               rs.w       1                                                         ; frame di animazione
+ball.length          rs.b       0
+
 
 
                      SECTION    codice,CODE 
@@ -114,10 +134,12 @@ wait:
 
                      bsr        swap_buffers
                      bsr        read_joy
+                     bsr        ball_update
                      bsr        update_player
                      bsr        update_camera
                      bsr        draw_pitch
                      bsr        draw_player
+                     bsr        ball_draw
 
                      btst       #6,$bfe001                                                ; tasto sinistro del mouse premuto?
                      bne        mainloop                                                  ; se no, torna a waitline
@@ -353,22 +375,32 @@ swap_buffers:
 ; d1.w coordinata y
 ; d3.w colonna dello spritesheet
 ; d4.w riga dello spritesheet
+; d5.w larghezza sprite
+; d6.w altezza sprite
 ; a1 indirizzo dello spritesheet
 ; a2 indirizzo delle maschere
+; a3.w larghezza spritesheet
+; a4.w altezza spritesheet
 ;**************************************************************************************************************************************************************************
 draw_sprite:
-            
+                     movem.l    d0-d7/a0-a6,-(sp)
                      move.l     draw_buffer,a0
-                     sub.w      #PLAYER_WIDTH/2,d0                                        ; porto l'origine al centro
+                     move.w     d5,d2
+                     asr.w      #1,d2                                                     ; width/2
+                     sub.w      d2,d0                                                     ; x = x - width/2  porto l'origine al centro 
                      sub.w      viewport_x,d0                                             ; converto da coordinate globali in coordinate locali alla viewport
                      cmp.w      #-16,d0
                      blt        .return                                                   ; se x < viewport_x - 16 , allora sprite fuori dalla viewport, non lo disegno
-                     cmp.w      #PLAYFIELD_VIS_W+16,d0                                    ; se x >= viewport_x + PLAYFIELD_VIS_W+16 allora
+                     cmp.w      #VIEWPORT_WIDTH+16,d0                                     ; se x >= viewport_x + VIEWPORT_WIDTH+16 allora
                      bge        .return                                                   ; sprite fuori dalla viewport, non lo disegno
                      add.w      #16,d0                                                    ; tiene conto dei 16 px non visibili per lo scroll
+                     sub.w      d6,d1                                                     ; y = y - height   porto l'origine in basso
+                     add.w      #20,d1                                                    ; tiene conto della fascia alta 20px fuori schermo per il clipping 
                      sub.w      viewport_y,d1
                      blt        .return                                                   ; se y < viewport_y non disegno lo sprite perchè non è visibile
-                     cmp.w      #VIEWPORT_HEIGHT+PLAYER_HEIGHT,d1
+                     move.w     #VIEWPORT_HEIGHT,d2
+                     add.w      d6,d2                                                     ; VIEWPORT_HEIGHT + sprite_height
+                     cmp.w      d2,d1
                      bge        .return                                                   ; se y >= viewport_y + PLAYFIELD_HEIGHT allora non è visibile e non lo disegno
                      mulu.w     #PLAYFIELD_ROW_SIZE,d1                                    ; calcolo offset_y = PLAYFIELD_ROW_SIZE * y
                      add.w      d1,a0                                                     ; sommo offset_y ad a0
@@ -381,14 +413,35 @@ draw_sprite:
                      lsr.w      #3,d1                                                     ; calcolo offset_x = x/8
                      and.w      #$fffe,d1                                                 ; rendo pari l'indirizzo
                      add.w      d1,a0
-                     mulu       #(PLAYER_WIDTH/8),d3                                      ; offset_x = colonna * (PLAYER_WIDTH/8)
+                     move.w     d5,d1                                                     ; SPRITE_WIDTH
+                     asr.w      #3,d1                                                     ; SPRITE_WIDTH/8
+                     mulu       d1,d3                                                     ; offset_x = colonna * (SPRITE_WIDTH/8)
                      add.w      d3,a1
                      add.w      d3,a2
-                     mulu       #PLAYER_HEIGHT,d4
-                     mulu       #SPRITESHEET_ROW_SIZE,d4                                  ; offset_y = riga * PLAYER_HEIGHT * SPRITESHEET_ROW_SIZE
+                     mulu       d6,d4                                                     ; SPRITE_HEIGHT * riga
+                     move.w     a3,d1                                                     ; SPRITESHEET_PLAYER_W
+                     asr.w      #3,d1                                                     ; SPRITESHEET_ROW_SIZE = SPRITESHEET_PLAYER_W / 8
+                     mulu       d1,d4                                                     ; offset_y = riga * SPRITE_HEIGHT * SPRITESHEET_ROW_SIZE
                      add.w      d4,a1
                      add.w      d4,a2
                      moveq      #N_PLANES-1,d7
+                     ; calcolo il modulo dei canali A,B (in d1)
+                     move.w     a3,d3                                                     ; SPRITESHEET_PLAYER_W
+                     sub.w      d5,d3                                                     ; SPRITESHEET_PLAYER_W-SPRITE_WIDTH
+                     sub.w      #16,d3                                                    ; SPRITESHEET_PLAYER_W-SPRITE_WIDTH-16
+                     asr.w      #3,d3                                                     ; (SPRITESHEET_PLAYER_W-SPRITE_WIDTH-16)/8
+                     ; calcolo il modulo dei canali C,D
+                     move.w     #PLAYFIELD_WIDTH,d4
+                     sub.w      d5,d4                                                     ; PLAYFIELD_WIDTH-SPRITE_WIDTH
+                     sub.w      #16,d4
+                     asr.w      #3,d4                                                     ; (PLAYFIELD_WIDTH-SPRITE_WIDTH-16)/8
+                     ; calcolo la dimensione della blittata
+                     move.w     d6,d1
+                     lsl.w      #6,d1                                                     ; SPRITE_HEIGHT<<6
+                     add.w      #16,d5                                                    ; SPRITE_WIDTH+16
+                     asr.w      #4,d5                                                     ; (SPRITE_WIDTH+16)/16
+                     add.w      d1,d5                                                     ; SPRITE_HEIGHT<<6+(SPRITE_WIDTH+16)/16
+
 .planeloop:
                      btst.b     #6,DMACONR(a5)                                            ; lettura dummy
 .bltbusy             btst.b     #6,DMACONR(a5)                                            ; blitter pronto?
@@ -397,23 +450,28 @@ draw_sprite:
                      move.w     #$0000,BLTALWM(a5)                                        ; maschera sull'ultima word
                      move.w     d0,BLTCON0(a5)                                            
                      move.w     d2,BLTCON1(a5)
-                     move.w     #(SPRITESHEET_W-PLAYER_WIDTH-16)/8,BLTAMOD(a5)
-                     move.w     #(SPRITESHEET_W-PLAYER_WIDTH-16)/8,BLTBMOD(a5)
-                     move.w     #(PLAYFIELD_WIDTH-PLAYER_WIDTH-16)/8,BLTCMOD(a5)
-                     move.w     #(PLAYFIELD_WIDTH-PLAYER_WIDTH-16)/8,BLTDMOD(a5)
+                     move.w     d3,BLTAMOD(a5)
+                     move.w     d3,BLTBMOD(a5)
+                     move.w     d4,BLTCMOD(a5)
+                     move.w     d4,BLTDMOD(a5)
                      move.l     a2,BLTAPT(a5)
-                     move.l     a1,BLTBPT(a5)
+                     move.l     a1,BLTBPT(a5) 
                      move.l     a0,BLTCPT(a5)
                      move.l     a0,BLTDPT(a5)
-                     move.w     #PLAYER_HEIGHT<<6+(PLAYER_WIDTH+16)/16,BLTSIZE(a5)
+                     move.w     d5,BLTSIZE(a5)
                      move.l     a0,d1
                      add.l      #PLF_PLANE_SIZE,d1                                        ; punto al bitplane successivo
                      move.l     d1,a0
+                     move.w     a3,d6
+                     asr.w      #3,d6                                                     ; SPRITESHEET_PLAYER_W/8
+                     move.w     a4,d1                                                     ; SPRITESHEET_PLAYER_H
+                     mulu       d1,d6                                                     ; SPR_PLANE_SIZE = (SPRITESHEET_PLAYER_W/8)*SPRITESHEET_PLAYER_H
                      move.l     a1,d1
-                     add.l      #SPR_PLANE_SIZE,d1
+                     add.l      d6,d1
                      move.l     d1,a1
                      dbra       d7,.planeloop
 .return:
+                     movem.l    (sp)+,d0-d7/a0-a6
                      rts
 
 
@@ -428,8 +486,12 @@ draw_player:
                      asr.w      #6,d1
                      move.w     player.animx(a0),d3                                       ; colonna dello spritesheet
                      move.w     player.animy(a0),d4                                       ; riga dello spritesheet
+                     move.w     #PLAYER_WIDTH,d5
+                     move.w     #PLAYER_HEIGHT,d6
                      lea        player_vertical,a1                                        ; indirizzo spritesheet
                      lea        player_vertical_mask,a2                                   ; indirizzo maschere
+                     move.w     #SPRITESHEET_PLAYER_W,a3
+                     move.w     #SPRITESHEET_PLAYER_H,a4
                      bsr        draw_sprite
                      rts  
 
@@ -615,6 +677,89 @@ process_plstate_standrun:
 
 
 ;**************************************************************************************************************************************************************************
+; disegna la palla
+;**************************************************************************************************************************************************************************
+ball_draw:
+                     lea        ball,a0
+                     move.w     ball.x(a0),d0
+                     asr        #6,d0                                                     ; converte da fixed 10.6 a int
+                     move.w     ball.y(a0),d1
+                     asr.w      #6,d1                                                     ; converte da fixed 10.6 a int
+                     movem.l    d0,-(sp)
+                     move.w     #4,d3                                                     ; animx
+                     move.w     ball.animy(a0),d4
+                     move.w     #BALL_WIDTH,d5
+                     move.w     #BALL_HEIGHT,d6 
+                     lea        ball_sprite,a1
+                     lea        ball_mask,a2
+                     move.w     #SPRITESHEET_BALL_W,a3
+                     move.w     #SPRITESHEET_BALL_H,a4
+                     ; disegna prima l'ombra
+                     add.w      #1,d0                                                     ; x = x + 1
+                     add.w      #3,d1                                                     ; y = y + 3
+                     bsr        draw_sprite
+                     ; disegna la palla
+                     movem.l    (sp)+,d0
+                     move.w     ball.y(a0),d1
+                     sub.w      ball.z(a0),d1                                             ; y = y -z
+                     asr.w      #6,d1                                                     ; converte da fixed 10.6 a int
+                     move.w     ball.animx(a0),d3 
+                     bsr        draw_sprite
+                     rts
+
+
+;**************************************************************************************************************************************************************************
+; aggiorna lo stato della palla
+;**************************************************************************************************************************************************************************
+ball_update:
+                     ; aggiorna la posizione
+                     lea        ball,a0                                                   ; calcola la posizione x = x + v * cos(a)
+                     lea        costable,a1
+                     move.w     ball.v(a0),d0
+                     move.w     ball.a(a0),d1
+                     lsl.w      #1,d1                                                     ; perchè la costable è formata da word
+                     move.w     0(a1,d1.w),d3                                             ; cos(a)
+                     muls       d3,d0                                                     ; v * cos(a)
+                     asr        #6,d0
+                     add.w      d0,ball.x(a0)
+                     lea        sintable,a1
+                     move.w     ball.v(a0),d0
+                     move.w     0(a1,d1.w),d3                                             ; sin(a)
+                     muls       d3,d0                                                     ; v * sin(a)
+                     add.w      d0,ball.y(a0)                                             ; y = y + v * sin(a)
+                     asr        #6,d0
+                     move.w     ball.vz(a0),d0
+                     add.w      d0,ball.z(a0)
+                     ; applica la gravità
+                     tst.w      ball.z(a0)
+                     bgt        .gravity                                                  ; se z > 0 applica la gravità
+                     bra        .rimbalzo
+.gravity:
+                     sub.w      #GRAVITY,ball.vz(a0)                                      ; vz = vz - GRAVITY
+.rimbalzo:
+                     tst.w      ball.z(a0)
+                     blt        .rimbalzo2                                                ; se z < 0
+                     bra        .return
+.rimbalzo2:
+                     tst.w      ball.vz(a0)
+                     blt        .rimbalzo3                                                ; se vz < 0
+                     bra        .return
+.rimbalzo3:
+                     move.w     #0,ball.z(a0)
+                     cmp.w      #-288,ball.vz(a0)                                          ; -4.5
+                     bgt        .zero
+                     move.w     ball.vz(a0),d0 
+                     muls       #-BOUNCE,d0
+                     asr.w      #6,d0
+                     move.w     d0,ball.vz(a0)
+                     bra        .return
+.zero:
+                     move.w     #0,ball.vz(a0)
+.return:
+                     rts
+
+
+;**************************************************************************************************************************************************************************
 ; variabili
 ;**************************************************************************************************************************************************************************
 gfx_name:
@@ -646,9 +791,19 @@ player0              dc.w       0<<6                                            
                      dc.w       0                                                         ; inputdevice.angle
                      dc.w       2                                                         ; player.speed
                      dc.w       INPUT_TYPE_JOY                                            ; player.inputtype
-                     dc.w       4                                                        ; player.anim_time
-                     dc.w       4                                                        ; player.anim_counter
-                     
+                     dc.w       4                                                         ; player.anim_time
+                     dc.w       4                                                         ; player.anim_counter
+
+ball                 dc.w       10<<6                                                     ; ball.x
+                     dc.w       10<<6                                                     ; ball.y
+                     dc.w       0<<6                                                      ; ball.z
+                     dc.w       0<<6                                                      ; ball.v
+                     dc.w       24<<6                                                     ; ball.vz
+                     dc.w       0                                                         ; ball.a
+                     dc.w       0                                                         ; ball.s
+                     dc.w       0                                                         ; ball.animx
+                     dc.w       0                                                         ; ball.animy
+                     dc.w       0                                                         ; ball.f                      
 
 ; tabella con le routine da eseguire per ciascun stato del calciatore
 player_state_jumptable:  
@@ -809,8 +964,7 @@ copperlist:
 
                      dc.w       $100,$4200                                                ; BPLCON0 4 bitplane
  
-
-  ; palette
+; palette
                      dc.w       $0180,$0790,$0182,$0999,$0184,$0FFF,$0186,$0000
                      dc.w       $0188,$0721,$018A,$0A40,$018C,$0F71,$018E,$0690
                      dc.w       $0190,$0030,$0192,$0990,$0194,$0F00,$0196,$000F
@@ -838,6 +992,11 @@ player_vertical:
                      incbin     "gfx/player_vertical_final2.raw"                          ; spritesheet del giocatore con maglia verticale 128 x 80
 player_vertical_mask:
                      incbin     "gfx/player_vertical_final2.mask"
+
+ball_sprite:
+                     incbin     "gfx/ball.raw"                                            ; 80x4, 5 frames
+ball_mask:
+                     incbin     "gfx/ball.mask"
 
 
                      SECTION    dati_azzerati,BSS_C                                       ; sezione contenente i dati azzerati

@@ -1,0 +1,18 @@
+DIARIO DELLO SVILUPPO
+
+19/09/2024:
+Movimento del calciatore con il joystick: se il calciatore ha settato come input_device il joystick, viene assegnato all'angolo del calciatore quello del joystick e come
+velocità quella che il calciatore ha come proprio attributo. Se il joystick non è stato mosso, la velocità è zero.
+Clipping degli sprite ai bordi dello schermo: ho lasciato una porzione della viewport non visibile di 16 px ai bordi dx e sx e di 20 pixel a quelli superiori ed inferiori.
+In questo modo è possibile disegnare lo sprite ai bordi e farlo scomparire gradualmente.
+Ho fatto puntare la telecamera alla posizione del calciatore. E' bastato aggiornare la posizione della viewport con quella del calciatore.
+Corsa del calciatore. Ho introdotto una macchina a stati per il calciatore. Per selezionare la routine che processa lo stato corrente ho usato una jumptable,
+che ha come entry point lo stato. Per la corsa del calciatore ho introdotto lo stato "standrun" in cui può correre e fermarsi.
+In questo stato seleziono il frame in cui è fermo se la velocità è 0.
+Per selezionare il frame uso l'angolo del calciatore per selezionare la colonna dello spritesheet.
+Se la velocità è > 0, ciclo i frame sulle righe dello spritesheet, usando un timer.
+
+
+20/09/2024:
+Oggi mi occupo del pallone. Ho iniziato con il rip della grafica da SWOS. Il pallone ha dimensioni 16x4 pixel e usa 4 frame di animazione.
+In più c'è un'altro frame per l'ombra.
