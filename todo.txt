@@ -6,6 +6,7 @@ TODO:
 1.3) Struttura dati        DONE 20/09/2024 
 1.4) Disegno               DONE 20/09/2024
 1.5) Movimento             INPROGRESS
+    verificare movimento con angoli 90 e 270
 1.6) Animazione
 1.7) Puntare la telecamera sul Pallone
 

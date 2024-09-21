@@ -51,8 +51,9 @@ BALL_WIDTH            EQU 16
 BALL_HEIGHT           EQU 4
 SPRITESHEET_BALL_W    EQU 80
 SPRITESHEET_BALL_H    EQU 4
-GRAVITY               EQU 128                                                             ; 2.0
-BOUNCE                EQU 51                                                              ; 0.8 in fixed 10.6
+GRAVITY               EQU 96                                                              ; 1.5 
+BOUNCE                EQU 45                                                              ; 0.7
+GRASS_FRICTION        EQU 10                                                              ; 0.16
 
 
 ;**************************************************************************************************************************************************************************
@@ -88,8 +89,8 @@ inputdevice.length   rs.b       0
 ball.x               rs.w       1                                                         ; posizione (in formato fixed 10.6)
 ball.y               rs.w       1
 ball.z               rs.w       1
-ball.v               rs.w       1                                                         ; velocità su x e y
-ball.vz              rs.w       1                                                         ; velocità verticale
+ball.v               rs.w       1                                                         ; velocità su x e y (in formato fixed 10.6)
+ball.vz              rs.w       1                                                         ; velocità verticale (in formato fixed 10.6)
 ball.a               rs.w       1                                                         ; angolo di orientamento (gradi)
 ball.s               rs.w       1                                                         ; spin
 ball.animx           rs.w       1                                                         ; colonna dello spritesheet
@@ -720,22 +721,47 @@ ball_update:
                      lsl.w      #1,d1                                                     ; perchè la costable è formata da word
                      move.w     0(a1,d1.w),d3                                             ; cos(a)
                      muls       d3,d0                                                     ; v * cos(a)
-                     asr        #6,d0
+                     asr.l      #6,d0
                      add.w      d0,ball.x(a0)
                      lea        sintable,a1
                      move.w     ball.v(a0),d0
                      move.w     0(a1,d1.w),d3                                             ; sin(a)
                      muls       d3,d0                                                     ; v * sin(a)
                      add.w      d0,ball.y(a0)                                             ; y = y + v * sin(a)
-                     asr        #6,d0
+                     asr.l      #6,d0
                      move.w     ball.vz(a0),d0
                      add.w      d0,ball.z(a0)
+                     ; applica l'attrito dell'erba
+                     cmp.w      #1<<6,ball.z(a0)                                          ; Z < 1?
+                     blt        .grass_friction
+                     bra        .test_gravity
+.grass_friction:
+                     move.w     ball.v(a0),d0
+                     tst.w      d0                                                        ; v < 0?
+                     blt        .change_sign
+                     bra        .apply_friction
+.change_sign:
+                     muls       #-1<<6,d0
+                     asr.l      #6,d0
+.apply_friction:
+                     muls.w     #GRASS_FRICTION,d0                                        ; GRASS_FRICTION * abs(v)
+                     asr.l      #6,d0
+                     sub.w      d0,ball.v(a0)                                             ; v = v - GRASS_FRICTION * abs(v)
+                     tst.w      ball.v(a0)                                                ; v <= 0?
+                     ble        .v_le_zero
+                     cmp.w      #10,ball.v(a0)
+                     ble        .v_le_zero
+                     bra        .test_gravity
+.v_le_zero:
+                     move.w     #0,ball.v(a0)                                             ; v = 0
+.test_gravity:
                      ; applica la gravità
                      tst.w      ball.z(a0)
                      bgt        .gravity                                                  ; se z > 0 applica la gravità
                      bra        .rimbalzo
 .gravity:
                      sub.w      #GRAVITY,ball.vz(a0)                                      ; vz = vz - GRAVITY
+                     move.w     ball.vz(a0),d0
 .rimbalzo:
                      tst.w      ball.z(a0)
                      blt        .rimbalzo2                                                ; se z < 0
@@ -746,11 +772,11 @@ ball_update:
                      bra        .return
 .rimbalzo3:
                      move.w     #0,ball.z(a0)
-                     cmp.w      #-288,ball.vz(a0)                                          ; -4.5
+                     cmp.w      #-326,ball.vz(a0)                                         ; vz > -5.1?
                      bgt        .zero
-                     move.w     ball.vz(a0),d0 
+                     move.w     ball.vz(a0),d0                                            ; vz = vz * - BOUNCE 
                      muls       #-BOUNCE,d0
-                     asr.w      #6,d0
+                     asr.l      #6,d0
                      move.w     d0,ball.vz(a0)
                      bra        .return
 .zero:
@@ -797,9 +823,9 @@ player0              dc.w       0<<6                                            
 ball                 dc.w       10<<6                                                     ; ball.x
                      dc.w       10<<6                                                     ; ball.y
                      dc.w       0<<6                                                      ; ball.z
-                     dc.w       0<<6                                                      ; ball.v
-                     dc.w       24<<6                                                     ; ball.vz
-                     dc.w       0                                                         ; ball.a
+                     dc.w       10<<6                                                      ; ball.v
+                     dc.w       0<<6                                                     ; ball.vz 19
+                     dc.w       270                                                         ; ball.a
                      dc.w       0                                                         ; ball.s
                      dc.w       0                                                         ; ball.animx
                      dc.w       0                                                         ; ball.animy
