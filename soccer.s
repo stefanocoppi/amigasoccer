@@ -727,8 +727,8 @@ ball_update:
                      move.w     ball.v(a0),d0
                      move.w     0(a1,d1.w),d3                                             ; sin(a)
                      muls       d3,d0                                                     ; v * sin(a)
-                     add.w      d0,ball.y(a0)                                             ; y = y + v * sin(a)
                      asr.l      #6,d0
+                     add.w      d0,ball.y(a0)                                             ; y = y + v * sin(a)
                      move.w     ball.vz(a0),d0
                      add.w      d0,ball.z(a0)
                      ; applica l'attrito dell'erba
@@ -823,9 +823,9 @@ player0              dc.w       0<<6                                            
 ball                 dc.w       10<<6                                                     ; ball.x
                      dc.w       10<<6                                                     ; ball.y
                      dc.w       0<<6                                                      ; ball.z
-                     dc.w       10<<6                                                      ; ball.v
-                     dc.w       0<<6                                                     ; ball.vz 19
-                     dc.w       270                                                         ; ball.a
+                     dc.w       10<<6                                                     ; ball.v
+                     dc.w       0<<6                                                      ; ball.vz 19
+                     dc.w       315                                                       ; ball.a
                      dc.w       0                                                         ; ball.s
                      dc.w       0                                                         ; ball.animx
                      dc.w       0                                                         ; ball.animy
