@@ -56,7 +56,10 @@ BOUNCE                EQU 45                                                    
 GRASS_FRICTION        EQU 10                                                              ; 0.16
 SPIN_FACTOR           EQU 15                                                              ; 0.24
 SPIN_DAMPENING        EQU 9                                                               ; 0.14
-
+BALL_XMIN             EQU -281<<6
+BALL_XMAX             EQU 287<<6
+BALL_YMIN             EQU -335<<6
+BALL_YMAX             EQU 335<<6
 
 ;**************************************************************************************************************************************************************************
 ; STRUTTURE DATI
@@ -857,6 +860,84 @@ ball_update:
 .reset_frame:
                      move.w     #0,ball.animx(A0)
 .return:
+                     bsr        ball_keep_in_field
+                     rts
+
+
+;**************************************************************************************************************************************************************************
+; Mantiene la palla nel campo di gioco.
+;**************************************************************************************************************************************************************************
+ball_keep_in_field:
+                     lea        ball,a0
+                     move.w     ball.x(a0),d0
+                     cmp.w      #BALL_XMIN,d0                                             ; ball.x <= BALL_XMIN?
+                     ble        .xmin
+                     cmp.w      #BALL_XMAX,d0                                             ; ball.x >= BALL_XMAX?
+                     bge        .xmax
+                     move.w     ball.y(a0),d0
+                     cmp.w      #BALL_YMIN,d0                                             ; ball.y <= BALL_YMIN?
+                     ble        .ymin
+                     cmp.w      #BALL_YMAX,d0                                             ; ball.y >= BALL_YMAX?
+                     bge        .ymax
+                     bra        .return
+.xmin:
+                     move.w     #BALL_XMIN,ball.x(a0)                                     ; ball.x = BALL_XMIN
+                     move.w     ball.v(a0),d0
+                     muls       #32,d0
+                     asr.l      #6,d0
+                     move.w     d0,ball.v(a0)                                             ; ball.v = ball.v * 0.5
+                     move.w     ball.a(a0),d0
+                     move.w     #180<<6,d1
+                     sub.w      d0,d1                                                     ; ball.a = 180 - ball.a
+                     blt        .convert                                                  ; ball.a < 0?
+                     bra        .continue
+.convert:
+                     add.w      #360<<6,d1                                                ; ball.a = 360 - ball.a
+.continue:
+                     move.w     d1,ball.a(a0)
+                     bra        .return
+.xmax:
+                     move.w     #BALL_XMAX,ball.x(a0)                                     ; ball.x = BALL_XMAX
+                     move.w     ball.v(a0),d0
+                     muls       #32,d0
+                     asr.l      #6,d0
+                     move.w     d0,ball.v(a0)                                             ; ball.v = ball.v * 0.5
+                     move.w     ball.a(a0),d0
+                     move.w     #180<<6,d1
+                     sub.w      d0,d1                                                     ; ball.a = 180 - ball.a
+                     blt        .makepos
+                     bra        .continue2
+.makepos:
+                     add.w      #360<<6,d1
+.continue2:
+                     move.w     d1,ball.a(a0)
+                     bra        .return
+.ymin:
+                     move.w     #BALL_YMIN,ball.y(a0)                                     ; ball.y = BALL_YMIN
+                     move.w     ball.v(a0),d0
+                     muls       #32,d0
+                     asr.l      #6,d0
+                     move.w     d0,ball.v(a0)                                             ; ball.v = ball.v * 0.5
+                     move.w     ball.a(a0),d0
+                     move.w     #360<<6,d1
+                     sub.w      d0,d1                                                     ; ball.a = 360 - ball.a
+                     move.w     d1,ball.a(a0)
+                     bra        .return
+.ymax:
+                     move.w     #BALL_YMAX,ball.y(a0)                                     ; ball.y = BALL_YMAX
+                     move.w     ball.v(a0),d0
+                     muls       #32,d0
+                     asr.l      #6,d0
+                     move.w     d0,ball.v(a0)                                             ; ball.v = ball.v * 0.5
+                     move.w     ball.a(a0),d0
+                     move.w     #360<<6,d1
+                     sub.w      d0,d1                                                     ; ball.a = 360 - ball.a
+                     move.w     d1,ball.a(a0)
+.return:
+                     move.w     ball.s(a0),d0
+                     muls       #-1<<6,d0 
+                     asr.l      #6,d0
+                     move.w     d0,ball.s(a0)                                             ; ball.s = - ball.s
                      rts
 
 
@@ -895,12 +976,12 @@ player0              dc.w       0<<6                                            
                      dc.w       4                                                         ; player.anim_time
                      dc.w       4                                                         ; player.anim_counter
 
-ball                 dc.w       150<<6                                                     ; ball.x
-                     dc.w       10<<6                                                     ; ball.y
+ball                 dc.w       150<<6                                                    ; ball.x
+                     dc.w       150<<6                                                    ; ball.y
                      dc.w       0<<6                                                      ; ball.z
-                     dc.w       0<<6                                                     ; ball.v
+                     dc.w       65<<6                                                     ; ball.v
                      dc.w       0<<6                                                      ; ball.vz 19
-                     dc.w       0<<6                                                      ; ball.a
+                     dc.w       60<<6                                                     ; ball.a
                      dc.w       0<<6                                                      ; ball.s
                      dc.w       0                                                         ; ball.animx
                      dc.w       0                                                         ; ball.animy

@@ -8,7 +8,7 @@ TODO:
 1.5) Movimento             DONE 23/09/2024
 1.6) Animazione            DONE 23/09/2024
 1.7) Puntare la telecamera sul Pallone    DONE 23/09/2024
-1.8) Limitare il pallone nel campo di gioco, facendolo rimbalzare contro gli ostacoli
+1.8) Limitare il pallone nel campo di gioco, facendolo rimbalzare contro gli ostacoli  DONE 23/09/2024
 
 2) Calciatore che entra in possesso della palla
 
