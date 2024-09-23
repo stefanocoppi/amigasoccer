@@ -240,6 +240,43 @@ draw_pitch:
 ; aggiorna la posizione della telecamera
 ;**************************************************************************************************************************************************************************
 update_camera:
+                     lea        ball,a0
+                     move.w     ball.x(a0),d0                                             ; coordinata x in formato fixed 10.6
+                     asr.w      #6,d0                                                     ; converte in int
+                     move.w     d0,camera_x
+                     move.w     ball.y(a0),d0                                             ; coordinata y in formato fixed 10.6
+                     asr.w      #6,d0                                                     ; converte in int
+                     move.w     d0,camera_y
+                    ; limita il movimento della cam entro il campo di gioco
+                     cmp.w      #CAMERA_XMIN,camera_x
+                     ble        .minx
+                     cmp.w      #CAMERA_XMAX,camera_x
+                     bge        .maxx
+.checky:
+                     cmp.w      #CAMERA_YMIN,camera_y
+                     ble        .miny
+                     cmp.w      #CAMERA_YMAX,camera_y
+                     bge        .maxy
+                     bra        .return
+.minx:
+                     move.w     #CAMERA_XMIN,camera_x
+                     bra        .checky
+.maxx:
+                     move.w     #CAMERA_XMAX,camera_x
+                     bra        .checky
+.miny:
+                     move.w     #CAMERA_YMIN,camera_y
+                     bra        .return
+.maxy:
+                     move.w     #CAMERA_YMAX,camera_y
+.return:
+                     rts
+
+
+;**************************************************************************************************************************************************************************
+; aggiorna la posizione della telecamera
+;**************************************************************************************************************************************************************************
+update_camera2:
                      lea        player0,a0
                      move.w     player.x(a0),d0                                           ; coordinata x in formato fixed 10.6
                      asr.w      #6,d0                                                     ; converte in int
@@ -858,12 +895,12 @@ player0              dc.w       0<<6                                            
                      dc.w       4                                                         ; player.anim_time
                      dc.w       4                                                         ; player.anim_counter
 
-ball                 dc.w       10<<6                                                     ; ball.x
+ball                 dc.w       150<<6                                                     ; ball.x
                      dc.w       10<<6                                                     ; ball.y
                      dc.w       0<<6                                                      ; ball.z
-                     dc.w       15<<6                                                     ; ball.v
+                     dc.w       0<<6                                                     ; ball.v
                      dc.w       0<<6                                                      ; ball.vz 19
-                     dc.w       0<<6                                                    ; ball.a
+                     dc.w       0<<6                                                      ; ball.a
                      dc.w       0<<6                                                      ; ball.s
                      dc.w       0                                                         ; ball.animx
                      dc.w       0                                                         ; ball.animy
