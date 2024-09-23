@@ -646,6 +646,7 @@ update_player_input:
 ; Stato in cui il calciatore può correre o fermarsi
 ;**************************************************************************************************************************************************************************
 process_plstate_standrun:
+                     bsr        player_get_possession
                      lea        player0,a0
                      lea        player.inputdevice(a0),a1
                      move.w     inputdevice.value(a1),d0
@@ -718,6 +719,49 @@ process_plstate_standrun:
 .reset_frame:
                      move.w     #0,player.animy(a0)
 .return:
+                     rts
+
+
+;**************************************************************************************************************************************************************************
+; Verifica se il calciatore può entrare in possesso di palla.
+;**************************************************************************************************************************************************************************
+player_get_possession:
+                     lea        player0,a0
+                     lea        ball,a1
+                     move.w     player.x(a0),d0
+                     move.w     player.y(a0),d1
+                     move.w     ball.x(a1),d2
+                     move.w     ball.y(a1),d3
+                     bsr        calc_dist
+                     cmp.l      #9<<6,d2                                                  ; dist<3?
+                     blo        .checkz
+                     bra        .return
+.checkz:
+                     move.w     #0,d0
+                     bra        .return
+.return:
+                     rts
+
+
+;**************************************************************************************************************************************************************************
+; calcola la distanza tra due punti.
+;
+; d0.w - x1
+; d1.w - y1
+; d2.w - x2
+; d3.w - y2
+;
+; d2.w - distanza al quadrato
+;**************************************************************************************************************************************************************************
+calc_dist:
+                     sub.w      d0,d2                                                     ;  x2 - x1
+                     ext.l      d2
+                     muls       d2,d2                                                     ; (x2 - x1)^2
+                     asr.l      #6,d2
+                     sub.w      d1,d3                                                     ; y2 - y1
+                     muls       d3,d3                                                     ; (y2 - y1)^2
+                     asr.l      #6,d3
+                     add.l      d3,d2                                                     ; dist^2
                      rts
 
 
@@ -976,12 +1020,12 @@ player0              dc.w       0<<6                                            
                      dc.w       4                                                         ; player.anim_time
                      dc.w       4                                                         ; player.anim_counter
 
-ball                 dc.w       150<<6                                                    ; ball.x
-                     dc.w       150<<6                                                    ; ball.y
+ball                 dc.w       10<<6                                                     ; ball.x
+                     dc.w       0<<6                                                      ; ball.y
                      dc.w       0<<6                                                      ; ball.z
-                     dc.w       65<<6                                                     ; ball.v
+                     dc.w       0<<6                                                      ; ball.v
                      dc.w       0<<6                                                      ; ball.vz 19
-                     dc.w       60<<6                                                     ; ball.a
+                     dc.w       0<<6                                                      ; ball.a
                      dc.w       0<<6                                                      ; ball.s
                      dc.w       0                                                         ; ball.animx
                      dc.w       0                                                         ; ball.animy
