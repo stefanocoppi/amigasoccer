@@ -97,7 +97,9 @@ ball.a               rs.w       1                                               
 ball.s               rs.w       1                                                         ; spin (in formato fixed 10.6)
 ball.animx           rs.w       1                                                         ; colonna dello spritesheet
 ball.animy           rs.w       1                                                         ; riga dello spritesheet
-ball.f               rs.w       1                                                         ; frame di animazione
+ball.f               rs.w       1                                                         ; frame di animazione (in formato fixed 10.6)
+ball.anim_timer      rs.w       1
+ball.anim_duration   rs.w       1                                                         ; durata frame di animazione (in 1/50 di sec)
 ball.length          rs.b       0
 
 
@@ -785,11 +787,11 @@ ball_update:
 .rimbalzo:
                      tst.w      ball.z(a0)
                      blt        .rimbalzo2                                                ; se z < 0
-                     bra        .return
+                     bra        .anim
 .rimbalzo2:
                      tst.w      ball.vz(a0)
                      blt        .rimbalzo3                                                ; se vz < 0
-                     bra        .return
+                     bra        .anim
 .rimbalzo3:
                      move.w     #0,ball.z(a0)
                      cmp.w      #-326,ball.vz(a0)                                         ; vz > -5.1?
@@ -798,9 +800,25 @@ ball_update:
                      muls       #-BOUNCE,d0
                      asr.l      #6,d0
                      move.w     d0,ball.vz(a0)
-                     bra        .return
+                     bra        .anim
 .zero:
                      move.w     #0,ball.vz(a0)
+.anim:
+                     ; animazione
+                     move.w     ball.v(a0),d0                                             ; se v = 0 allora non cambio frame
+                     tst.w      d0
+                     beq        .return
+                     sub.w      #1,ball.anim_timer(a0)
+                     ble        .adv_frame
+                     bra        .return
+.adv_frame:
+                     move.w     ball.anim_duration(a0),ball.anim_timer(a0)                ; ripristina il timer
+                     add.w      #1,ball.animx(a0)
+                     cmp.w      #3,ball.animx(a0)
+                     bgt        .reset_frame
+                     bra        .return
+.reset_frame:
+                     move.w     #0,ball.animx(A0)
 .return:
                      rts
 
@@ -843,13 +861,16 @@ player0              dc.w       0<<6                                            
 ball                 dc.w       10<<6                                                     ; ball.x
                      dc.w       10<<6                                                     ; ball.y
                      dc.w       0<<6                                                      ; ball.z
-                     dc.w       10<<6                                                     ; ball.v
+                     dc.w       15<<6                                                     ; ball.v
                      dc.w       0<<6                                                      ; ball.vz 19
-                     dc.w       270<<6                                                    ; ball.a
-                     dc.w       10<<6                                                     ; ball.s
+                     dc.w       0<<6                                                    ; ball.a
+                     dc.w       0<<6                                                      ; ball.s
                      dc.w       0                                                         ; ball.animx
                      dc.w       0                                                         ; ball.animy
-                     dc.w       0                                                         ; ball.f                      
+                     dc.w       0                                                         ; ball.f    
+                     dc.w       2                                                         ; ball.anim_timer
+                     dc.w       2                                                         ; ball.anim_duration
+                                       
 
 ; tabella con le routine da eseguire per ciascun stato del calciatore
 player_state_jumptable:  
