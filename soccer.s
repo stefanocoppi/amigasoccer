@@ -54,6 +54,8 @@ SPRITESHEET_BALL_H    EQU 4
 GRAVITY               EQU 96                                                              ; 1.5 
 BOUNCE                EQU 45                                                              ; 0.7
 GRASS_FRICTION        EQU 10                                                              ; 0.16
+SPIN_FACTOR           EQU 15                                                              ; 0.24
+SPIN_DAMPENING        EQU 9                                                               ; 0.14
 
 
 ;**************************************************************************************************************************************************************************
@@ -91,8 +93,8 @@ ball.y               rs.w       1
 ball.z               rs.w       1
 ball.v               rs.w       1                                                         ; velocità su x e y (in formato fixed 10.6)
 ball.vz              rs.w       1                                                         ; velocità verticale (in formato fixed 10.6)
-ball.a               rs.w       1                                                         ; angolo di orientamento (gradi)
-ball.s               rs.w       1                                                         ; spin
+ball.a               rs.w       1                                                         ; angolo di orientamento (gradi) (in formato fixed 10.6)
+ball.s               rs.w       1                                                         ; spin (in formato fixed 10.6)
 ball.animx           rs.w       1                                                         ; colonna dello spritesheet
 ball.animy           rs.w       1                                                         ; riga dello spritesheet
 ball.f               rs.w       1                                                         ; frame di animazione
@@ -713,11 +715,29 @@ ball_draw:
 ; aggiorna lo stato della palla
 ;**************************************************************************************************************************************************************************
 ball_update:
-                     ; aggiorna la posizione
-                     lea        ball,a0                                                   ; calcola la posizione x = x + v * cos(a)
-                     lea        costable,a1
+                     ; calcola lo spin (effetto)
+                     lea        ball,a0
+                     move.w     ball.s(a0),d0
+                     muls       #SPIN_FACTOR,d0                                           ; SPIN_FACTOR * s
+                     asr.l      #6,d0
+                     add.w      d0,ball.a(a0)                                             ; a = SPIN_FACTOR * s
+                     move.w     #1<<6,d0
+                     sub.w      #SPIN_DAMPENING,d0                                        ; 1 - SPIN_DAMPENING
+                     move.w     ball.s(a0),d1
+                     muls       d1,d0                                                     ; s *= 1 - SPIN_DAMPENING
+                     asr.l      #6,d0
+                     move.w     d0,ball.s(a0)
+                     ; aggiorna la posizione                    
+                     lea        costable,a1                                               ; calcola la posizione x = x + v * cos(a)
                      move.w     ball.v(a0),d0
                      move.w     ball.a(a0),d1
+                     lsr.w      #6,d1                                                     ; converte in int
+                     cmp.w      #360,d1                                                   ; a > 360 ?
+                     bgt        .gt360
+                     bra        .continue
+.gt360:
+                     sub.w      #360,d1                                                   ; se a>360 allora a = a - 360
+.continue:
                      lsl.w      #1,d1                                                     ; perchè la costable è formata da word
                      move.w     0(a1,d1.w),d3                                             ; cos(a)
                      muls       d3,d0                                                     ; v * cos(a)
@@ -825,8 +845,8 @@ ball                 dc.w       10<<6                                           
                      dc.w       0<<6                                                      ; ball.z
                      dc.w       10<<6                                                     ; ball.v
                      dc.w       0<<6                                                      ; ball.vz 19
-                     dc.w       315                                                       ; ball.a
-                     dc.w       0                                                         ; ball.s
+                     dc.w       270<<6                                                    ; ball.a
+                     dc.w       10<<6                                                     ; ball.s
                      dc.w       0                                                         ; ball.animx
                      dc.w       0                                                         ; ball.animy
                      dc.w       0                                                         ; ball.f                      

@@ -5,8 +5,7 @@ TODO:
 1.2) Conversione grafica   DONE 20/09/2024
 1.3) Struttura dati        DONE 20/09/2024 
 1.4) Disegno               DONE 20/09/2024
-1.5) Movimento             INPROGRESS
-     Spin
+1.5) Movimento             DONE 23/09/2024
 1.6) Animazione
 1.7) Puntare la telecamera sul Pallone
 
