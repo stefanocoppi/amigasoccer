@@ -44,6 +44,7 @@ SPRITESHEET_PLAYER_W  EQU 128
 SPRITESHEET_PLAYER_H  EQU 80
 PLAYER_WIDTH          EQU 16
 PLAYER_HEIGHT         EQU 20
+PLAYER_H              EQU 12
 PLAYER_STATE_STANDRUN EQU 0
 INPUT_TYPE_JOY        EQU 0
 INPUT_TYPE_AI         EQU 1
@@ -69,13 +70,13 @@ BALL_YMAX             EQU 335<<6
                      rsreset
 player.x             rs.w       1                                                         ; posizione (in formato fixed 10.6)
 player.y             rs.w       1
-player.v             rs.w       1                                                         ; velocità 
-player.a             rs.w       1                                                         ; angolo di orientamento (gradi)
+player.v             rs.w       1                                                         ; velocità (in formato fixed 10.6)
+player.a             rs.w       1                                                         ; angolo di orientamento (gradi) (in formato fixed 10.6)
 player.animx         rs.w       1                                                         ; colonna del frame di animazione
 player.animy         rs.w       1                                                         ; riga del frame di animazione
 player.state         rs.w       1                                                         ; stato del calciatore
 player.inputdevice   rs.b       inputdevice.length
-player.speed         rs.w       1                                                         ; attributo velocità 
+player.speed         rs.w       1                                                         ; attributo velocità (in formato fixed 10.6)
 player.inputtype     rs.w       1                                                         ; tipo di input
 player.anim_time     rs.w       1                                                         ; tempo di animazione (in 1/50 di sec)
 player.anim_counter  rs.w       1
@@ -549,14 +550,17 @@ update_player:
                      lea        costable,a1
                      move.w     player.v(a0),d0
                      move.w     player.a(a0),d1
+                     asr.w      #6,d1                                                     ; converte da fixed 10.6 ad int
                      lsl.w      #1,d1                                                     ; perchè la costable è formata da word
                      move.w     0(a1,d1.w),d3                                             ; cos(a)
                      muls       d3,d0                                                     ; v * cos(a)
+                     asr.l      #6,d0 
                      add.w      d0,player.x(a0)
                      lea        sintable,a1
                      move.w     player.v(a0),d0
                      move.w     0(a1,d1.w),d3                                             ; sin(a)
                      muls       d3,d0                                                     ; v * sin(a)
+                     asr.l      #6,d0
                      add.w      d0,player.y(a0)                                           ; y = y + v * sin(a) 
                      bsr        update_player_input
                      bsr        process_player_state
@@ -656,24 +660,26 @@ process_plstate_standrun:
                      bra        .anim
 .moveplayer:
                      move.w     player.speed(a0),player.v(a0)
-                     move.w     inputdevice.angle(a1),player.a(a0)
+                     move.w     inputdevice.angle(a1),d0
+                     asl.w      #6,d0                                                     ; converte in fixed 10.6
+                     move.w     d0,player.a(a0)                                           ; player.a = inputdevice.angle
 .anim:
                     ; animazione
                      move.w     player.a(a0),d0
                      beq        .dx
-                     cmp.w      #45,d0
+                     cmp.w      #45<<6,d0
                      beq        .downdx
-                     cmp.w      #90,d0
+                     cmp.w      #90<<6,d0
                      beq        .down
-                     cmp.w      #135,d0
+                     cmp.w      #135<<6,d0
                      beq        .downsx
-                     cmp.w      #180,d0
+                     cmp.w      #180<<6,d0
                      beq        .sx
-                     cmp.w      #225,d0
+                     cmp.w      #225<<6,d0
                      beq        .upsx
-                     cmp.w      #270,d0
+                     cmp.w      #270<<6,d0
                      beq        .up
-                     cmp.w      #315,d0
+                     cmp.w      #315<<6,d0
                      beq        .updx
                      bra        .vert_frame
 .dx:
@@ -733,11 +739,22 @@ player_get_possession:
                      move.w     ball.x(a1),d2
                      move.w     ball.y(a1),d3
                      bsr        calc_dist
-                     cmp.l      #9<<6,d2                                                  ; dist<3?
+                     cmp.l      #25,d2                                                    ; distanza palla-calciatore <5?
                      blo        .checkz
                      bra        .return
 .checkz:
-                     move.w     #0,d0
+                     cmp.w      #PLAYER_H<<6,ball.z(a1)                                   ; ball.z < PLAYER_H ?
+                     blt        .ball_possession
+                     bra        .return
+.ball_possession:
+                    ;  move.w     player.v(a0),d0
+                    ;  mulu       #83,d0
+                    ;  asr.l      #6,d0                                                    
+                    ;  move.w     d0,ball.v(a1)                                             ; ball.v = 1.3 * player.v
+                     move.w     player.v(a0),ball.v(a1)                                   ; ball.v = player.v
+                     move.w     player.a(a0),ball.a(a1)                                   ; ball.a = player.a
+                     move.w     #0,ball.z(a1)                                             ; ball.z = 0
+                     move.w     #0,ball.vz(a1)                                            ; ball.vz = 0
                      bra        .return
 .return:
                      rts
@@ -746,21 +763,25 @@ player_get_possession:
 ;**************************************************************************************************************************************************************************
 ; calcola la distanza tra due punti.
 ;
+; input:
 ; d0.w - x1
 ; d1.w - y1
 ; d2.w - x2
 ; d3.w - y2
 ;
-; d2.w - distanza al quadrato
+; ritorna:
+; d2.l - distanza al quadrato
 ;**************************************************************************************************************************************************************************
 calc_dist:
+                     asr.w      #6,d0                                                     ; converto da fixed 10.6 a int tutte le coordinate
+                     asr.w      #6,d1
+                     asr.w      #6,d2
+                     asr.w      #6,d3
                      sub.w      d0,d2                                                     ;  x2 - x1
                      ext.l      d2
                      muls       d2,d2                                                     ; (x2 - x1)^2
-                     asr.l      #6,d2
                      sub.w      d1,d3                                                     ; y2 - y1
                      muls       d3,d3                                                     ; (y2 - y1)^2
-                     asr.l      #6,d3
                      add.l      d3,d2                                                     ; dist^2
                      rts
 
@@ -903,6 +924,15 @@ ball_update:
                      bra        .return
 .reset_frame:
                      move.w     #0,ball.animx(A0)
+
+                    ;  move.w     ball.v(a0),d0
+                    ;  divu       #20,d0                                                    ; ball.v / 20                                                    
+                    ;  add.w      d0,ball.f(a0)                                             ; ball.f = ball.f + ball.v / 20
+                    ;  move.w     ball.f(a0),d0
+                    ;  ext.l      d0
+                    ;  divu       #4,d0                                                     ; ball.f = ball.f / 4
+                    ;  swap       d0                                                        ; resto (compreso 0-3)
+                    ;  move.w     d0,ball.animx(a0)                                               
 .return:
                      bsr        ball_keep_in_field
                      rts
@@ -1006,16 +1036,16 @@ draw_buffer          dc.l       playfield2                                      
 
 joy_state            dc.w       0                                                         ; stato dello joystick
 
-player0              dc.w       0<<6                                                      ; posizione x
-                     dc.w       0<<6                                                      ; posizione y
-                     dc.w       0                                                         ; player.v
-                     dc.w       90                                                        ; player.a
+player0              dc.w       -20<<6                                                    ; posizione x
+                     dc.w       -10<<6                                                    ; posizione y
+                     dc.w       0<<6                                                      ; player.v
+                     dc.w       90<<6                                                     ; player.a
                      dc.w       0                                                         ; player.animx
                      dc.w       1                                                         ; player.animy
                      dc.w       PLAYER_STATE_STANDRUN                                     ; stato
                      dc.w       0                                                         ; inputdevice.value
                      dc.w       0                                                         ; inputdevice.angle
-                     dc.w       2                                                         ; player.speed
+                     dc.w       2<<6                                                      ; player.speed
                      dc.w       INPUT_TYPE_JOY                                            ; player.inputtype
                      dc.w       4                                                         ; player.anim_time
                      dc.w       4                                                         ; player.anim_counter

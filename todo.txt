@@ -10,8 +10,8 @@ TODO:
 1.7) Puntare la telecamera sul Pallone    DONE 23/09/2024
 1.8) Limitare il pallone nel campo di gioco, facendolo rimbalzare contro gli ostacoli  DONE 23/09/2024
 
-2) Calciatore che entra in possesso della palla
+2) Calciatore che entra in possesso della palla DONE 24/09/2024
 
-3) Calciatore che dribbla palla al piede
+3) Calciatore che dribbla palla al piede        DONE 24/09/2024
 
 4) Calciatore che tira la palla
