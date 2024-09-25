@@ -46,6 +46,7 @@ PLAYER_WIDTH          EQU 16
 PLAYER_HEIGHT         EQU 20
 PLAYER_H              EQU 12
 PLAYER_STATE_STANDRUN EQU 0
+PLAYER_STATE_KICK     EQU 1
 INPUT_TYPE_JOY        EQU 0
 INPUT_TYPE_AI         EQU 1
 BALL_WIDTH            EQU 16
@@ -80,6 +81,9 @@ player.speed         rs.w       1                                               
 player.inputtype     rs.w       1                                                         ; tipo di input
 player.anim_time     rs.w       1                                                         ; tempo di animazione (in 1/50 di sec)
 player.anim_counter  rs.w       1
+player.id            rs.w       1                                                         ; id univoco
+player.has_ball      rs.w       1                                                         ; 1 se è in possesso della palla, 0 altrimenti
+player.kick_angle    rs.w       1                                                         ; angolo di tiro in gradi (in formato fixed 10.6)
 player.length        rs.b       0
 
 
@@ -87,6 +91,7 @@ player.length        rs.b       0
                      rsreset
 inputdevice.value    rs.w       1                                                         ; un valore <> 0 indica che è stato mosso in una direzione
 inputdevice.angle    rs.w       1                                                         ; angolo in cui la leva è stata spostata (0-359)
+inputdevice.fire     rs.w       1                                                         ; se fire è premuto vale 1, 0 altrimenti
 inputdevice.length   rs.b       0 
 
 
@@ -104,6 +109,7 @@ ball.animy           rs.w       1                                               
 ball.f               rs.w       1                                                         ; frame di animazione (in formato fixed 10.6)
 ball.anim_timer      rs.w       1
 ball.anim_duration   rs.w       1                                                         ; durata frame di animazione (in 1/50 di sec)
+ball.owner           rs.w       1                                                         ; id del calciatore in possesso della palla
 ball.length          rs.b       0
 
 
@@ -383,11 +389,15 @@ read_joy:
                      btst.l     #8,d3                                                     ; joy in alto?
                      beq.s      .check_down                                               
                      add.w      #%100,joy_state 
-                     bra.s      .end
+                     bra.s      .check_fire
 .check_down:
                      btst.l     #0,d3                                                     ; joy in basso?
-                     beq.s      .end                                                      
+                     beq.s      .check_fire                                                      
                      add.w      #%1000,joy_state
+.check_fire:
+                     btst       #7,$bfe001                                                ; fire premuto?
+                     bne        .end
+                     add.w      #%10000,joy_state
 .end 
                      rts
 
@@ -609,39 +619,46 @@ update_player_input:
                      cmp.w      #%1010,d0                                                 ; joy in basso a sx?
                      beq        .downsx
                      move.w     #0,inputdevice.value(a1)
-                     bra        .return
+                     bra        .check_fire
 .dx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #0,inputdevice.angle(a1)
-                     bra        .return
+                     bra        .check_fire
 .sx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #180,inputdevice.angle(a1)
-                     bra        .return
+                     bra        .check_fire
 .up:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #270,inputdevice.angle(a1)
-                     bra        .return
+                     bra        .check_fire
 .down:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #90,inputdevice.angle(a1)
-                     bra        .return
+                     bra        .check_fire
 .updx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #315,inputdevice.angle(a1)
-                     bra        .return
+                     bra        .check_fire
 .upsx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #225,inputdevice.angle(a1)
-                     bra        .return
+                     bra        .check_fire
 .downdx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #45,inputdevice.angle(a1)
-                     bra        .return
+                     bra        .check_fire
 .downsx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #135,inputdevice.angle(a1)
+                     bra        .check_fire
+.check_fire:
+                     move.w     #0,inputdevice.fire(a1)
+                     btst.l     #4,d0                                                     ; fire premuto?
+                     bne        .set_fire
                      bra        .return
+.set_fire:
+                     move.w     #1,inputdevice.fire(a1)
 .return:
                      rts
 
@@ -711,20 +728,48 @@ process_plstate_standrun:
                      tst.w      d0
                      bgt        .run_anim                                                 ; se player.v > 0, allora cambia animy ciclicamente
                      move.w     #1,player.animy(a0)
-                     bra        .return
+                     bra        .check_state_change
 .run_anim:
                      sub.w      #1,player.anim_counter(a0)                                ; decrementa il timer di animazione
                      ble        .adv_frame
-                     bra        .return
+                     bra        .check_state_change
 .adv_frame:
                      move.w     player.anim_time(a0),player.anim_counter(a0)              ; ripristina il timer
                      add.w      #1,player.animy(a0)                                       ; incrementa il frame di animazione y
                      cmp.w      #3,player.animy(a0)
                      bgt        .reset_frame                                              ; player.animy > 3, allora resetta l'animazione 
-                     bra        .return
+                     bra        .check_state_change
 .reset_frame:
                      move.w     #0,player.animy(a0)
+.check_state_change:
+                     move.w     inputdevice.fire(a1),d0
+                     tst.w      d0                                                        ; fire premuto?
+                     bne        .checkz
+                     bra        .return
+.checkz:
+                     lea        ball,a1
+                     move.w     ball.z(a1),d0
+                     cmp.w      #8<<6,d0                                                  ; ball.z < 8?
+                     blt        .check_possesion
+                     bra        .return
+.check_possesion:
+                     move.w     player.has_ball(a0),d0
+                     tst.w      d0                                                        ; player.has_ball = 1?
+                     bne        .change_state
+                     bra        .return
+.change_state:
+                     move.w     ball.a(a1),player.kick_angle(a0)
+                     move.w     #PLAYER_STATE_KICK,player.state(a0)
 .return:
+                     rts
+
+
+;**************************************************************************************************************************************************************************
+; Stato in cui il calciatore calcia la palla
+;**************************************************************************************************************************************************************************
+process_plstate_kick:
+                     lea        player0,a0
+                     move.w     player.kick_angle(a0),d0
                      rts
 
 
@@ -755,6 +800,8 @@ player_get_possession:
                      move.w     player.a(a0),ball.a(a1)                                   ; ball.a = player.a
                      move.w     #0,ball.z(a1)                                             ; ball.z = 0
                      move.w     #0,ball.vz(a1)                                            ; ball.vz = 0
+                     move.w     player.id(a0),ball.owner(a1)
+                     move.w     #1,player.has_ball(a0)
                      bra        .return
 .return:
                      rts
@@ -1045,10 +1092,14 @@ player0              dc.w       -20<<6                                          
                      dc.w       PLAYER_STATE_STANDRUN                                     ; stato
                      dc.w       0                                                         ; inputdevice.value
                      dc.w       0                                                         ; inputdevice.angle
+                     dc.w       0                                                         ; inputdevice.fire
                      dc.w       2<<6                                                      ; player.speed
                      dc.w       INPUT_TYPE_JOY                                            ; player.inputtype
                      dc.w       4                                                         ; player.anim_time
                      dc.w       4                                                         ; player.anim_counter
+                     dc.w       1                                                         ; player.id 
+                     dc.w       0                                                         ; player.has_ball
+                     dc.w       0                                                         ; player.kick_angle
 
 ball                 dc.w       10<<6                                                     ; ball.x
                      dc.w       0<<6                                                      ; ball.y
@@ -1062,11 +1113,13 @@ ball                 dc.w       10<<6                                           
                      dc.w       0                                                         ; ball.f    
                      dc.w       2                                                         ; ball.anim_timer
                      dc.w       2                                                         ; ball.anim_duration
+                     dc.w       0                                                         ; ball.owner
                                        
 
 ; tabella con le routine da eseguire per ciascun stato del calciatore
 player_state_jumptable:  
                      dc.l       process_plstate_standrun
+                     dc.l       process_plstate_kick
 
 
 sintable:

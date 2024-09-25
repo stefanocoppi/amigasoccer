@@ -14,4 +14,4 @@ TODO:
 
 3) Calciatore che dribbla palla al piede        DONE 24/09/2024
 
-4) Calciatore che tira la palla
+4) Calciatore che tira la palla IN_PROGRESS
