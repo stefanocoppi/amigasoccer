@@ -84,6 +84,7 @@ player.anim_counter  rs.w       1
 player.id            rs.w       1                                                         ; id univoco
 player.has_ball      rs.w       1                                                         ; 1 se è in possesso della palla, 0 altrimenti
 player.kick_angle    rs.w       1                                                         ; angolo di tiro in gradi (in formato fixed 10.6)
+player.timer1        rs.w       1
 player.length        rs.b       0
 
 
@@ -759,6 +760,8 @@ process_plstate_standrun:
                      bra        .return
 .change_state:
                      move.w     ball.a(a1),player.kick_angle(a0)
+                     move.w     #4<<6,ball.v(a1)                                          ; ball.v = 4
+                     move.w     #0,player.timer1(a0)
                      move.w     #PLAYER_STATE_KICK,player.state(a0)
 .return:
                      rts
@@ -769,7 +772,20 @@ process_plstate_standrun:
 ;**************************************************************************************************************************************************************************
 process_plstate_kick:
                      lea        player0,a0
-                     move.w     player.kick_angle(a0),d0
+                     lea        ball,a1
+                     add.w      #1,player.timer1(a0)
+                     move.w     player.timer1(a0),d0
+                     cmp.w      #15,d0                                                    ; player.timer1 < 15
+                     blt        .shot_power
+                     bra        .return
+.shot_power:
+                     move.w     inputdevice.fire(a0),d0                                   ; fire premuto?
+                     tst.w      d0
+                     bne        .increase_speed
+                     bra        .return
+.increase_speed:
+                     add.w      #13<<6,ball.v(a1)                                         ; ball.v += 13
+.return:
                      rts
 
 
@@ -1100,6 +1116,7 @@ player0              dc.w       -20<<6                                          
                      dc.w       1                                                         ; player.id 
                      dc.w       0                                                         ; player.has_ball
                      dc.w       0                                                         ; player.kick_angle
+                     dc.w       0                                                         ; player.timer1
 
 ball                 dc.w       10<<6                                                     ; ball.x
                      dc.w       0<<6                                                      ; ball.y
