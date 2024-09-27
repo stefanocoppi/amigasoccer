@@ -62,6 +62,11 @@ BALL_XMIN             EQU -281<<6
 BALL_XMAX             EQU 287<<6
 BALL_YMIN             EQU -335<<6
 BALL_YMAX             EQU 335<<6
+KICKMODE_UNKNOWN      EQU 0
+KICKMODE_LOWPASS      EQU 1
+KICKMODE_SHOT         EQU 2
+KICKMODE_HIGHPASS     EQU 3
+
 
 ;**************************************************************************************************************************************************************************
 ; STRUTTURE DATI
@@ -83,8 +88,8 @@ player.anim_time     rs.w       1                                               
 player.anim_counter  rs.w       1
 player.id            rs.w       1                                                         ; id univoco
 player.has_ball      rs.w       1                                                         ; 1 se è in possesso della palla, 0 altrimenti
-player.kick_angle    rs.w       1                                                         ; angolo di tiro in gradi (in formato fixed 10.6)
 player.timer1        rs.w       1
+player.kick_mode     rs.w       1                                                         ; modalità di calcio della palla
 player.length        rs.b       0
 
 
@@ -603,6 +608,7 @@ update_player_input:
 .joy:
                     ; in base allo stato del joystick, imposta angolo e value dell'input_device del calciatore
                      move.w     joy_state,d0
+                     and.w      #$000f,d0                                                 ; preleva solo i primi 4 bit che indicano la direzione
                      cmp.w      #1,d0                                                     ; joy a dx?
                      beq        .dx
                      cmp.w      #2,d0                                                     ; joy a sx?
@@ -654,9 +660,10 @@ update_player_input:
                      move.w     #135,inputdevice.angle(a1)
                      bra        .check_fire
 .check_fire:
-                     move.w     #0,inputdevice.fire(a1)
+                     move.w     joy_state,d0
                      btst.l     #4,d0                                                     ; fire premuto?
                      bne        .set_fire
+                     move.w     #0,inputdevice.fire(a1)
                      bra        .return
 .set_fire:
                      move.w     #1,inputdevice.fire(a1)
@@ -743,25 +750,20 @@ process_plstate_standrun:
 .reset_frame:
                      move.w     #0,player.animy(a0)
 .check_state_change:
+                     move.w     player.has_ball(a0),d0
+                     tst.w      d0                                                        ; player.has_ball = 0?
+                     beq        .return
+                     lea        ball,a2
+                     move.w     ball.z(a2),d0
+                     cmp.w      #8<<6,d0                                                  ; ball.z >= 8?
+                     bge        .return
                      move.w     inputdevice.fire(a1),d0
                      tst.w      d0                                                        ; fire premuto?
-                     bne        .checkz
-                     bra        .return
-.checkz:
-                     lea        ball,a1
-                     move.w     ball.z(a1),d0
-                     cmp.w      #8<<6,d0                                                  ; ball.z < 8?
-                     blt        .check_possesion
-                     bra        .return
-.check_possesion:
-                     move.w     player.has_ball(a0),d0
-                     tst.w      d0                                                        ; player.has_ball = 1?
-                     bne        .change_state
-                     bra        .return
-.change_state:
-                     move.w     ball.a(a1),player.kick_angle(a0)
-                     move.w     #4<<6,ball.v(a1)                                          ; ball.v = 4
+                     beq        .return
+                     ;move.w     #3<<6,ball.v(a2)                                          ; ball.v = 2
+                     ;move.w     #0,player.v(a0)
                      move.w     #0,player.timer1(a0)
+                     move.w     #KICKMODE_UNKNOWN,player.kick_mode(a0)
                      move.w     #PLAYER_STATE_KICK,player.state(a0)
 .return:
                      rts
@@ -773,18 +775,55 @@ process_plstate_standrun:
 process_plstate_kick:
                      lea        player0,a0
                      lea        ball,a1
+                     lea        player.inputdevice(a0),a2
                      add.w      #1,player.timer1(a0)
+                     move.w     player.kick_mode(a0),d0
+                     cmp.w      #KICKMODE_UNKNOWN,d0                                      ; kick_mode = KICKMODE_UNKNOWN?
+                     beq        .calc_kick_mode
+                     cmp.w      #KICKMODE_SHOT,d0
+                     beq        .shooting
+                     bra        .return
+.calc_kick_mode:
                      move.w     player.timer1(a0),d0
-                     cmp.w      #15,d0                                                    ; player.timer1 < 15
-                     blt        .shot_power
-                     bra        .return
-.shot_power:
-                     move.w     inputdevice.fire(a0),d0                                   ; fire premuto?
+                     cmp.w      #7,d0                                                     ; player.timer1 >= 7?
+                     bge        .check_fire
+                     bra        .set_ball_v
+.check_fire:
+                     move.w     inputdevice.fire(a2),d0                                   ; fire premuto?
                      tst.w      d0
-                     bne        .increase_speed
+                     bne        .set_shooting
+                     move.w     #KICKMODE_LOWPASS,player.kick_mode(a0)
                      bra        .return
-.increase_speed:
-                     add.w      #13<<6,ball.v(a1)                                         ; ball.v += 13
+.set_shooting:
+                     move.w     #3<<6,ball.v(a1)
+                     move.w     #KICKMODE_SHOT,player.kick_mode(a0)
+                     bra        .return
+.shooting:
+                     move.w     player.timer1(a0),d0
+                     cmp.w      #10,d0                                                    ; player.timer1 > 10?
+                     bgt        .check_15
+                     bra        .return
+.check_15:
+                     cmp.w      #15,d0                                                    ; player.timer1 < 15?
+                     blt        .calcv_shoot
+                     bra        .change_state
+.calcv_shoot:
+                     move.w     inputdevice.fire(a2),d0                                   ; fire premuto?
+                     tst.w      d0
+                     beq        .change_state
+                     add.w      #8<<6,ball.v(a1)                                          ; ball.v += 2
+                     move.w     ball.v(a1),d0
+                     add.w      #0<<6,d0                                                  ; 2 + ball.v
+                     mulu       #7,d0                                                    ; 0.3 * (2 + ball.v)
+                     lsr.l      #6,d0
+                     move.w     d0,ball.vz(a1)                                            ; ball.vz = 0.3 * (2 + ball.v)
+.change_state:
+                     move.w     player.timer1(a0),d0
+                     cmp.w      #17,d0                                                    ; player.timer1 >= 17?
+                     blt        .return
+                     move.w     #PLAYER_STATE_STANDRUN,player.state(a0)
+.set_ball_v:
+                     move.w     player.v(a0),ball.v(a1)
 .return:
                      rts
 
@@ -802,11 +841,11 @@ player_get_possession:
                      bsr        calc_dist
                      cmp.l      #25,d2                                                    ; distanza palla-calciatore <5?
                      blo        .checkz
-                     bra        .return
+                     bra        .no_possession
 .checkz:
                      cmp.w      #PLAYER_H<<6,ball.z(a1)                                   ; ball.z < PLAYER_H ?
                      blt        .ball_possession
-                     bra        .return
+                     bra        .no_possession
 .ball_possession:
                     ;  move.w     player.v(a0),d0
                     ;  mulu       #83,d0
@@ -819,6 +858,9 @@ player_get_possession:
                      move.w     player.id(a0),ball.owner(a1)
                      move.w     #1,player.has_ball(a0)
                      bra        .return
+.no_possession:
+                     move.w     #0,ball.owner(a1)
+                     move.w     #0,player.has_ball(a0)
 .return:
                      rts
 
@@ -1115,8 +1157,8 @@ player0              dc.w       -20<<6                                          
                      dc.w       4                                                         ; player.anim_counter
                      dc.w       1                                                         ; player.id 
                      dc.w       0                                                         ; player.has_ball
-                     dc.w       0                                                         ; player.kick_angle
                      dc.w       0                                                         ; player.timer1
+                     dc.w       KICKMODE_UNKNOWN                                          ; player.kick_mode
 
 ball                 dc.w       10<<6                                                     ; ball.x
                      dc.w       0<<6                                                      ; ball.y
