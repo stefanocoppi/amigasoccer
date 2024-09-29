@@ -782,6 +782,8 @@ process_plstate_kick:
                      beq        .calc_kick_mode
                      cmp.w      #KICKMODE_SHOT,d0
                      beq        .shooting
+                     cmp.w      #KICKMODE_LOWPASS,d0
+                     beq        .lopass 
                      bra        .return
 .calc_kick_mode:
                      move.w     player.timer1(a0),d0
@@ -792,6 +794,7 @@ process_plstate_kick:
                      move.w     inputdevice.fire(a2),d0                                   ; fire premuto?
                      tst.w      d0
                      bne        .set_shooting
+                     move.w     #20<<6,ball.v(a1)
                      move.w     #KICKMODE_LOWPASS,player.kick_mode(a0)
                      bra        .return
 .set_shooting:
@@ -811,10 +814,10 @@ process_plstate_kick:
                      move.w     inputdevice.fire(a2),d0                                   ; fire premuto?
                      tst.w      d0
                      beq        .change_state
-                     add.w      #8<<6,ball.v(a1)                                          ; ball.v += 2
+                     add.w      #8<<6,ball.v(a1)                                          ; ball.v += 8
                      move.w     ball.v(a1),d0
                      add.w      #0<<6,d0                                                  ; 2 + ball.v
-                     mulu       #7,d0                                                    ; 0.3 * (2 + ball.v)
+                     mulu       #7,d0                                                     ; 0.3 * (2 + ball.v)
                      lsr.l      #6,d0
                      move.w     d0,ball.vz(a1)                                            ; ball.vz = 0.3 * (2 + ball.v)
 .change_state:
@@ -822,8 +825,26 @@ process_plstate_kick:
                      cmp.w      #17,d0                                                    ; player.timer1 >= 17?
                      blt        .return
                      move.w     #PLAYER_STATE_STANDRUN,player.state(a0)
+                     bra        .return
 .set_ball_v:
                      move.w     player.v(a0),ball.v(a1)
+                     bra        .return
+.lopass:
+                     move.w     player.timer1(a0),d0
+                     cmp.w      #12,d0                                                    ; player.timer1 < 12?
+                     blt        .calc_pass
+                     bra        .change_state
+.calc_pass:
+                     move.w     inputdevice.fire(a2),d0                                   ; fire premuto?
+                     tst.w      d0
+                     beq        .change_state
+                     add.w      #20<<6,ball.v(a1)                                         ; ball.v += 6
+                     move.w     ball.v(a1),d0
+                    ;  add.w      #4<<6,d0                                                  ; 2 + ball.v
+                    ;  mulu       #6,d0                                                     ; 0.1 * (2 + ball.v)
+                    ;  lsr.l      #6,d0
+                    ;  move.w     d0,ball.vz(a1)                                            ; ball.vz = 0.1 * (2 + ball.v)
+                     bra        .change_state
 .return:
                      rts
 
