@@ -13,60 +13,61 @@
 ;**************************************************************************************************************************************************************************
 ; costanti
 ;**************************************************************************************************************************************************************************
-ExecBase              EQU $4
-Disable               EQU -$78
-Enable                EQU -$7e
-OpenLibrary           EQU -$198
-CloseLibrary          EQU -$19e
+ExecBase               EQU $4
+Disable                EQU -$78
+Enable                 EQU -$7e
+OpenLibrary            EQU -$198
+CloseLibrary           EQU -$19e
 
                      ;5432109876543210
-DMASET                EQU %1000001111000000                                               ; copper,bitplane,blitter DMA
-N_PLANES              EQU 4                                                               ; numero di bitplanes
-PITCH_WIDTH           EQU 640
-PITCH_HEIGHT          EQU 817
-PLAYFIELD_WIDTH       EQU 352
-PLAYFIELD_VIS_W       EQU 320
-PLAYFIELD_HEIGHT      EQU 256+2*PLAYER_HEIGHT
-PLAYFIELD_ROW_SIZE    EQU (PLAYFIELD_WIDTH/8)
-PITCH_PLANE_SIZE      EQU (PITCH_WIDTH/8)*PITCH_HEIGHT
-PITCH_ROW_SIZE        EQU (PITCH_WIDTH/8)
-PITCH_ORIGIN_X        EQU 309
-PITCH_ORIGIN_Y        EQU 417
-PLF_PLANE_SIZE        EQU (PLAYFIELD_WIDTH/8)*PLAYFIELD_HEIGHT
-VIEWPORT_WIDTH        EQU 320
-VIEWPORT_HEIGHT       EQU 256
-CAMERA_YMIN           EQU -PITCH_ORIGIN_Y+(VIEWPORT_HEIGHT/2)
-CAMERA_YMAX           EQU PITCH_HEIGHT-PITCH_ORIGIN_Y-(VIEWPORT_HEIGHT/2)
-CAMERA_XMIN           EQU -PITCH_ORIGIN_X+(VIEWPORT_WIDTH/2)
-CAMERA_XMAX           EQU PITCH_WIDTH-PITCH_ORIGIN_X-(VIEWPORT_WIDTH/2)
-CAMERA_SPEED          EQU 4
-SPRITESHEET_PLAYER_W  EQU 128
-SPRITESHEET_PLAYER_H  EQU 80
-PLAYER_WIDTH          EQU 16
-PLAYER_HEIGHT         EQU 20
-PLAYER_H              EQU 12
-PLAYER_STATE_STANDRUN EQU 0
-PLAYER_STATE_KICK     EQU 1
-INPUT_TYPE_JOY        EQU 0
-INPUT_TYPE_AI         EQU 1
-BALL_WIDTH            EQU 16
-BALL_HEIGHT           EQU 4
-SPRITESHEET_BALL_W    EQU 80
-SPRITESHEET_BALL_H    EQU 4
-GRAVITY               EQU 96                                                              ; 1.5 
-BOUNCE                EQU 45                                                              ; 0.7
-GRASS_FRICTION        EQU 10                                                              ; 0.16
-SPIN_FACTOR           EQU 15                                                              ; 0.24
-SPIN_DAMPENING        EQU 9                                                               ; 0.14
-BALL_XMIN             EQU -281<<6
-BALL_XMAX             EQU 287<<6
-BALL_YMIN             EQU -335<<6
-BALL_YMAX             EQU 335<<6
-KICKMODE_UNKNOWN      EQU 0
-KICKMODE_LOWPASS      EQU 1
-KICKMODE_SHOT         EQU 2
-KICKMODE_HIGHPASS     EQU 3
-
+DMASET                 EQU %1000001111000000                                              ; copper,bitplane,blitter DMA
+N_PLANES               EQU 4                                                              ; numero di bitplanes
+PITCH_WIDTH            EQU 640
+PITCH_HEIGHT           EQU 817
+PLAYFIELD_WIDTH        EQU 352
+PLAYFIELD_VIS_W        EQU 320
+PLAYFIELD_HEIGHT       EQU 256+2*PLAYER_HEIGHT
+PLAYFIELD_ROW_SIZE     EQU (PLAYFIELD_WIDTH/8)
+PITCH_PLANE_SIZE       EQU (PITCH_WIDTH/8)*PITCH_HEIGHT
+PITCH_ROW_SIZE         EQU (PITCH_WIDTH/8)
+PITCH_ORIGIN_X         EQU 309
+PITCH_ORIGIN_Y         EQU 417
+PLF_PLANE_SIZE         EQU (PLAYFIELD_WIDTH/8)*PLAYFIELD_HEIGHT
+VIEWPORT_WIDTH         EQU 320
+VIEWPORT_HEIGHT        EQU 256
+CAMERA_YMIN            EQU -PITCH_ORIGIN_Y+(VIEWPORT_HEIGHT/2)
+CAMERA_YMAX            EQU PITCH_HEIGHT-PITCH_ORIGIN_Y-(VIEWPORT_HEIGHT/2)
+CAMERA_XMIN            EQU -PITCH_ORIGIN_X+(VIEWPORT_WIDTH/2)
+CAMERA_XMAX            EQU PITCH_WIDTH-PITCH_ORIGIN_X-(VIEWPORT_WIDTH/2)
+CAMERA_SPEED           EQU 4
+SPRITESHEET_PLAYER_W   EQU 128
+SPRITESHEET_PLAYER_H   EQU 80
+PLAYER_WIDTH           EQU 16
+PLAYER_HEIGHT          EQU 20
+PLAYER_H               EQU 12
+PLAYER_STATE_STANDRUN  EQU 0
+PLAYER_STATE_KICK      EQU 1
+INPUT_TYPE_JOY         EQU 0
+INPUT_TYPE_AI          EQU 1
+BALL_WIDTH             EQU 16
+BALL_HEIGHT            EQU 4
+SPRITESHEET_BALL_W     EQU 80
+SPRITESHEET_BALL_H     EQU 4
+GRAVITY                EQU 96                                                             ; 1.5 
+BOUNCE                 EQU 45                                                             ; 0.7
+GRASS_FRICTION         EQU 10                                                             ; 0.16
+SPIN_FACTOR            EQU 15                                                             ; 0.24
+SPIN_DAMPENING         EQU 9                                                              ; 0.14
+BALL_XMIN              EQU -281<<6
+BALL_XMAX              EQU 287<<6
+BALL_YMIN              EQU -335<<6
+BALL_YMAX              EQU 335<<6
+KICKMODE_UNKNOWN       EQU 0
+KICKMODE_LOWPASS       EQU 1
+KICKMODE_SHOT          EQU 2
+KICKMODE_HIGHPASS      EQU 3
+GOAL_LINE              EQU 196
+PENALY_AREA_HALF_WIDTH EQU 144
 
 ;**************************************************************************************************************************************************************************
 ; STRUTTURE DATI
@@ -90,6 +91,7 @@ player.id            rs.w       1                                               
 player.has_ball      rs.w       1                                                         ; 1 se è in possesso della palla, 0 altrimenti
 player.timer1        rs.w       1
 player.kick_mode     rs.w       1                                                         ; modalità di calcio della palla
+player.side          rs.w       1                                                         ; indica qual'è la metà campo della propria squadra: -1 sopra, 1 sotto
 player.length        rs.b       0
 
 
@@ -116,6 +118,7 @@ ball.f               rs.w       1                                               
 ball.anim_timer      rs.w       1
 ball.anim_duration   rs.w       1                                                         ; durata frame di animazione (in 1/50 di sec)
 ball.owner           rs.w       1                                                         ; id del calciatore in possesso della palla
+ball.x_side          rs.w       1                                                         ; indica in quale parte di campo orizzontale si trova: -1 alla sinistra, 1 alla destra
 ball.length          rs.b       0
 
 
@@ -783,7 +786,9 @@ process_plstate_kick:
                      cmp.w      #KICKMODE_SHOT,d0
                      beq        .shooting
                      cmp.w      #KICKMODE_LOWPASS,d0
-                     beq        .lopass 
+                     beq        .lopass
+                     cmp.w      #KICKMODE_HIGHPASS,d0
+                     beq        .hipass  
                      bra        .return
 .calc_kick_mode:
                      move.w     player.timer1(a0),d0
@@ -793,13 +798,21 @@ process_plstate_kick:
 .check_fire:
                      move.w     inputdevice.fire(a2),d0                                   ; fire premuto?
                      tst.w      d0
-                     bne        .set_shooting
+                     bne        .check_shot
                      move.w     #20<<6,ball.v(a1)
                      move.w     #KICKMODE_LOWPASS,player.kick_mode(a0)
                      bra        .return
+.check_shot:
+                     bsr        ball_is_inside_shot_area
+                     tst.w      d0
+                     beq        .set_hipass
 .set_shooting:
                      move.w     #3<<6,ball.v(a1)
                      move.w     #KICKMODE_SHOT,player.kick_mode(a0)
+                     bra        .return
+.set_hipass:
+                     move.w     #3<<6,ball.v(a1)
+                     move.w     #KICKMODE_HIGHPASS,player.kick_mode(a0)
                      bra        .return
 .shooting:
                      move.w     player.timer1(a0),d0
@@ -845,6 +858,22 @@ process_plstate_kick:
                     ;  lsr.l      #6,d0
                     ;  move.w     d0,ball.vz(a1)                                            ; ball.vz = 0.1 * (2 + ball.v)
                      bra        .change_state
+.hipass:
+                     move.w     player.timer1(a0),d0
+                     cmp.w      #12,d0                                                    ; player.timer1 < 12?
+                     blt        .calc_hipass
+                     bra        .change_state
+.calc_hipass:
+                     move.w     inputdevice.fire(a2),d0                                   ; fire premuto?
+                     tst.w      d0
+                     beq        .change_state
+                     add.w      #3<<6,ball.v(a1)                                          ; ball.v += 3
+                     move.w     ball.v(a1),d0
+                     add.w      #0<<6,d0                                                  ; 2 + ball.v
+                     mulu       #32,d0                                                    ; 0.5 * (2 + ball.v)
+                     lsr.l      #6,d0
+                     move.w     d0,ball.vz(a1)  
+                     bra        .change_state
 .return:
                      rts
 
@@ -869,9 +898,9 @@ player_get_possession:
                      bra        .no_possession
 .ball_possession:
                     ;  move.w     player.v(a0),d0
-                    ;  mulu       #83,d0
+                    ;  mulu       #58,d0
                     ;  asr.l      #6,d0                                                    
-                    ;  move.w     d0,ball.v(a1)                                             ; ball.v = 1.3 * player.v
+                    ;  move.w     d0,ball.v(a1)                                             ; ball.v = 0.9 * player.v
                      move.w     player.v(a0),ball.v(a1)                                   ; ball.v = player.v
                      move.w     player.a(a0),ball.a(a1)                                   ; ball.a = player.a
                      move.w     #0,ball.z(a1)                                             ; ball.z = 0
@@ -1061,6 +1090,14 @@ ball_update:
                     ;  move.w     d0,ball.animx(a0)                                               
 .return:
                      bsr        ball_keep_in_field
+                     lea        ball,a0
+                     tst.w      ball.x(a0)                                                ; ball.x < 0?
+                     blt        .neg
+                     move.w     #1,ball.x_side(a0)
+                     bra        .return2
+.neg:
+                     move.w     #-1,ball.x_side(a0)
+.return2:
                      rts
 
 
@@ -1142,6 +1179,38 @@ ball_keep_in_field:
 
 
 ;**************************************************************************************************************************************************************************
+; Indica se la palla si trova nell'area di tiro
+;
+; ritorna:
+; d0.w - se la palla si trova nell'area di tiro 1, 0 altrimenti 
+;**************************************************************************************************************************************************************************
+ball_is_inside_shot_area:
+                     movem.l    a0-a1,-(sp) 
+                     lea        ball,a0
+                     lea        player0,a1
+                     move.w     player.side(a1),d1
+                     muls       #-1,d1                                                    ; -player.side
+                     move.w     ball.y(a0),d0
+                     muls       d1,d0                                                     ; -player.side * ball.y
+                     cmp.w      #GOAL_LINE<<6,d0                                          ; (player.side * ball.y) > GOAL_LINE?
+                     bgt        .checkx
+                     move.w     #0,d0
+                     bra        .return
+.checkx:
+                     move.w     ball.x(a0),d0
+                     muls       ball.x_side(a0),d0
+                     cmp.w      #PENALY_AREA_HALF_WIDTH<<6,d0                             ; ball.x * ball.x_side < PENALY_AREA_HALF_WIDTH?
+                     blt        .ret1
+                     move.w     #0,d0
+                     bra        .return
+.ret1:
+                     move.w     #1,d0
+.return:
+                     movem.l    (sp)+,a0-a1
+                     rts
+
+
+;**************************************************************************************************************************************************************************
 ; variabili
 ;**************************************************************************************************************************************************************************
 gfx_name:
@@ -1180,6 +1249,7 @@ player0              dc.w       -20<<6                                          
                      dc.w       0                                                         ; player.has_ball
                      dc.w       0                                                         ; player.timer1
                      dc.w       KICKMODE_UNKNOWN                                          ; player.kick_mode
+                     dc.w       -1                                                        ; player.side
 
 ball                 dc.w       10<<6                                                     ; ball.x
                      dc.w       0<<6                                                      ; ball.y
@@ -1191,10 +1261,10 @@ ball                 dc.w       10<<6                                           
                      dc.w       0                                                         ; ball.animx
                      dc.w       0                                                         ; ball.animy
                      dc.w       0                                                         ; ball.f    
-                     dc.w       2                                                         ; ball.anim_timer
+                     dc.w       2                          F                              ; ball.anim_timer
                      dc.w       2                                                         ; ball.anim_duration
                      dc.w       0                                                         ; ball.owner
-                                       
+                     dc.w       0                                                         ; ball.x_side                    
 
 ; tabella con le routine da eseguire per ciascun stato del calciatore
 player_state_jumptable:  
