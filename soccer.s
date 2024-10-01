@@ -68,6 +68,8 @@ KICKMODE_SHOT          EQU 2
 KICKMODE_HIGHPASS      EQU 3
 GOAL_LINE              EQU 196
 PENALY_AREA_HALF_WIDTH EQU 144
+POTGOR                 EQU $016
+;POTGO                  EQU $034
 
 ;**************************************************************************************************************************************************************************
 ; STRUTTURE DATI
@@ -101,7 +103,9 @@ player.length        rs.b       0
                      rsreset
 inputdevice.value    rs.w       1                                                         ; un valore <> 0 indica che è stato mosso in una direzione
 inputdevice.angle    rs.w       1                                                         ; angolo in cui la leva è stata spostata (0-359)
-inputdevice.fire     rs.w       1                                                         ; se fire è premuto vale 1, 0 altrimenti
+inputdevice.fire1    rs.w       1                                                         ; se fire1 è premuto vale 1, 0 altrimenti
+inputdevice.fire2    rs.w       1                                                         ; se fire2 è premuto vale 1, 0 altrimenti
+inputdevice.fire3    rs.w       1                                                         ; se fire3 è premuto vale 1, 0 altrimenti
 inputdevice.length   rs.b       0 
 
 
@@ -159,7 +163,7 @@ wait:
                      bne.s      wait
 
                      bsr        swap_buffers
-                     bsr        read_joy
+                     bsr        read_joy3
                      bsr        ball_update
                      bsr        update_player
                      bsr        update_camera
@@ -406,10 +410,63 @@ read_joy:
                      beq.s      .check_fire                                                      
                      add.w      #%1000,joy_state
 .check_fire:
-                     btst       #7,$bfe001                                                ; fire premuto?
+                     btst       #7,$bfe001                                                ; fire1 premuto?
                      bne        .end
                      add.w      #%10000,joy_state
+                     bra        .end
 .end 
+                     rts
+
+
+;**************************************************************************************************************************************************************************
+; legge il joystick e aggiorna la variabile joy_state: versione che legge joystick a 3 pulsanti.
+; 
+; NB: il joystick deve essere connesso in porta 2
+; in WinUAE, come tipologia di joystick, selezionare Gamepad.
+;**************************************************************************************************************************************************************************
+read_joy3:
+                     clr.w      joy_state                                                 ; azzero lo stato del joy
+                     move.w     JOY1DAT(a5),d3
+                     btst.l     #1,d3                                                     ; joy a destra?
+                     beq.s      .checksx
+                     add.w      #1,joy_state  
+                     bra        .checkup
+.checksx:
+                     btst.l     #9,d3                                                     ; joy a sinistra?
+                     beq.s      .checkup
+                     add.w      #2,joy_state
+.checkup:
+                     move.w     d3,d2
+                     lsr.w      #1,d2                                                     ; il bit 9 di JOY1DAT è in posizione 8 in d2
+                     eor.w      d2,d3                                                     ; eor tra il bit 8 e il 9 di JOY1DAT
+                     btst.l     #8,d3                                                     ; joy in alto?
+                     beq.s      .check_down                                               
+                     add.w      #%100,joy_state 
+                     bra.s      .check_fire1
+.check_down:
+                     btst.l     #0,d3                                                     ; joy in basso?
+                     beq.s      .check_fire1                                                      
+                     add.w      #%1000,joy_state
+.check_fire1:
+                     btst       #7,$bfe001                                                ; fire1 premuto?
+                     bne        .check_fire2
+                     add.w      #%10000,joy_state
+                     bra        .end
+.check_fire2:
+                     move.w     POTGOR(a5),d0
+                     btst.l     #14,d0                                                    ; fire2 premuto?
+                     beq        .set_fire2_state
+                     bra        .check_fire3
+.set_fire2_state:
+                     add.w      #%100000,joy_state
+.check_fire3:
+                     btst.l     #12,d0                                                    ; fire3 premuto?
+                     beq        .set_fire3_state
+                     bra        .end
+.set_fire3_state:
+                     add.w      #%1000000,joy_state
+.end 
+                     move.w     #$ff00,POTGO(a5)                                          ; abilita i pin 12,14 per la lettura
                      rts
 
 
@@ -632,47 +689,61 @@ update_player_input:
                      cmp.w      #%1010,d0                                                 ; joy in basso a sx?
                      beq        .downsx
                      move.w     #0,inputdevice.value(a1)
-                     bra        .check_fire
+                     bra        .check_fire1
 .dx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #0,inputdevice.angle(a1)
-                     bra        .check_fire
+                     bra        .check_fire1
 .sx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #180,inputdevice.angle(a1)
-                     bra        .check_fire
+                     bra        .check_fire1
 .up:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #270,inputdevice.angle(a1)
-                     bra        .check_fire
+                     bra        .check_fire1
 .down:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #90,inputdevice.angle(a1)
-                     bra        .check_fire
+                     bra        .check_fire1
 .updx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #315,inputdevice.angle(a1)
-                     bra        .check_fire
+                     bra        .check_fire1
 .upsx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #225,inputdevice.angle(a1)
-                     bra        .check_fire
+                     bra        .check_fire1
 .downdx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #45,inputdevice.angle(a1)
-                     bra        .check_fire
+                     bra        .check_fire1
 .downsx:
                      move.w     #1,inputdevice.value(a1)
                      move.w     #135,inputdevice.angle(a1)
-                     bra        .check_fire
-.check_fire:
+                     bra        .check_fire1
+.check_fire1:
                      move.w     joy_state,d0
-                     btst.l     #4,d0                                                     ; fire premuto?
-                     bne        .set_fire
-                     move.w     #0,inputdevice.fire(a1)
+                     btst.l     #4,d0                                                     ; fire1 premuto?
+                     bne        .set_fire1
+                     move.w     #0,inputdevice.fire1(a1)
+                     bra        .check_fire2
+.set_fire1:
+                     move.w     #1,inputdevice.fire1(a1)
+.check_fire2:
+                     btst.l     #5,d0                                                     ; fire2 premuto?
+                     bne        .set_fire2
+                     move.w     #0,inputdevice.fire2(a1)
+                     bra        .check_fire3
+.set_fire2:
+                     move.w     #1,inputdevice.fire2(a1)
+.check_fire3:
+                     btst.l     #6,d0                                                     ; fire3 premuto?
+                     bne        .set_fire3
+                     move.w     #0,inputdevice.fire3(a1)
                      bra        .return
-.set_fire:
-                     move.w     #1,inputdevice.fire(a1)
+.set_fire3:
+                     move.w     #1,inputdevice.fire3(a1)
 .return:
                      rts
 
@@ -763,7 +834,7 @@ process_plstate_standrun:
                      move.w     ball.z(a2),d0
                      cmp.w      #8<<6,d0                                                  ; ball.z >= 8?
                      bge        .return
-                     move.w     inputdevice.fire(a1),d0
+                     move.w     inputdevice.fire1(a1),d0
                      tst.w      d0                                                        ; fire premuto?
                      beq        .return
                      ;move.w     #3<<6,ball.v(a2)                                          ; ball.v = 2
@@ -801,7 +872,7 @@ process_plstate_kick:
                      bge        .check_fire
                      bra        .set_ball_v
 .check_fire:
-                     move.w     inputdevice.fire(a2),d0                                   ; fire premuto?
+                     move.w     inputdevice.fire1(a2),d0                                  ; fire premuto?
                      tst.w      d0
                      bne        .check_shot
                      move.w     #3<<6,ball.v(a1)
@@ -829,7 +900,7 @@ process_plstate_kick:
                      blt        .calcv_shoot
                      bra        .change_state
 .calcv_shoot:
-                     move.w     inputdevice.fire(a2),d0                                   ; fire premuto?
+                     move.w     inputdevice.fire1(a2),d0                                  ; fire premuto?
                      tst.w      d0
                      beq        .change_state
                      add.w      #8<<6,ball.v(a1)                                          ; ball.v += 8
@@ -874,7 +945,7 @@ process_plstate_kick:
                      blt        .calc_pass
                      bra        .change_state
 .calc_pass:
-                        ; move.w     inputdevice.fire(a2),d0                                   ; fire premuto?
+                        ; move.w     inputdevice.fire1(a2),d0                                   ; fire premuto?
                         ; tst.w      d0
                         ; beq        .change_state
                      add.w      #6<<6,ball.v(a1)                                          ; ball.v += 6
@@ -890,7 +961,7 @@ process_plstate_kick:
                      blt        .calc_hipass
                      bra        .change_state
 .calc_hipass:
-                     move.w     inputdevice.fire(a2),d0                                   ; fire premuto?
+                     move.w     inputdevice.fire1(a2),d0                                  ; fire premuto?
                      tst.w      d0
                      beq        .change_state
                      add.w      #3<<6,ball.v(a1)                                          ; ball.v += 3
@@ -1268,7 +1339,9 @@ player0              dc.w       -20<<6                                          
                      dc.w       PLAYER_STATE_STANDRUN                                     ; stato
                      dc.w       0                                                         ; inputdevice.value
                      dc.w       0                                                         ; inputdevice.angle
-                     dc.w       0                                                         ; inputdevice.fire
+                     dc.w       0                                                         ; inputdevice.fire1
+                     dc.w       0                                                         ; inputdevice.fire2
+                     dc.w       0                                                         ; inputdevice.fire3
                      dc.w       2<<6                                                      ; player.speed
                      dc.w       INPUT_TYPE_JOY                                            ; player.inputtype
                      dc.w       4                                                         ; player.anim_time
