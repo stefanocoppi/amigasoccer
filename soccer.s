@@ -166,10 +166,10 @@ wait:
                        bsr        swap_buffers
                        bsr        read_joy3
                        bsr        ball_update
-                       bsr        update_player
+                       bsr        player_update
                        bsr        update_camera
                        bsr        draw_pitch
-                       bsr        draw_player
+                       bsr        player_draw
                        bsr        ball_draw
 
                        btst       #6,$bfe001                                                ; tasto sinistro del mouse premuto?
@@ -603,7 +603,7 @@ draw_sprite:
 ;**************************************************************************************************************************************************************************
 ; Disegna un calciatore.
 ;**************************************************************************************************************************************************************************
-draw_player:
+player_draw:
                        lea        player0,a0
                        move.w     player.x(a0),d0                                           ; coordinata x in formato fixed 10.6
                        asr.w      #6,d0                                                     ; converte x in int
@@ -618,6 +618,9 @@ draw_player:
                        move.w     #SPRITESHEET_PLAYER_W,a3
                        move.w     #SPRITESHEET_PLAYER_H,a4
                        bsr        draw_sprite
+                       ; se il calciatore è selezionato, mostra l'indicatore e la shoot bar
+                       tst.w      player.selected(a0)                                       ; player.selected = 0?
+                       beq        .return
                        bsr        shoot_bar_draw
 .return:
                        rts  
@@ -626,7 +629,7 @@ draw_player:
 ;**************************************************************************************************************************************************************************
 ; Aggiorna lo stato di un calciatore.
 ;**************************************************************************************************************************************************************************
-update_player:
+player_update:
                        lea        player0,a0                                                ; calcola la posizione x = x + v * cos(a)
                        lea        costable,a1
                        move.w     player.v(a0),d0
@@ -643,15 +646,15 @@ update_player:
                        muls       d3,d0                                                     ; v * sin(a)
                        asr.l      #6,d0
                        add.w      d0,player.y(a0)                                           ; y = y + v * sin(a) 
-                       bsr        update_player_input
-                       bsr        process_player_state
+                       bsr        player_update_input
+                       bsr        player_process_state
                        rts
 
 
 ;**************************************************************************************************************************************************************************
 ; Chiama la routine di gestione dello stato corrente del calciatore, usando la jumptable
 ;**************************************************************************************************************************************************************************
-process_player_state:
+player_process_state:
                        lea        player_state_jumptable,a1
                        lea        player0,a0
                        move.w     player.state(a0),d0
@@ -664,7 +667,7 @@ process_player_state:
 ;**************************************************************************************************************************************************************************
 ; Aggiorna l'input del calciatore
 ;**************************************************************************************************************************************************************************
-update_player_input:
+player_update_input:
                        lea        player0,a0
                        lea        player.inputdevice(a0),a1
                        move.w     player.inputtype(a0),d0
@@ -753,7 +756,7 @@ update_player_input:
 ;**************************************************************************************************************************************************************************
 ; Stato in cui il calciatore può correre o fermarsi
 ;**************************************************************************************************************************************************************************
-process_plstate_standrun:
+player_state_standrun:
                        bsr        player_get_possession
                        lea        player0,a0
                        lea        player.inputdevice(a0),a1
@@ -912,7 +915,7 @@ process_plstate_kick:
                        mulu       #7,d0                                                     ; 0.3 * (2 + ball.v)
                        lsr.l      #6,d0
                        move.w     d0,ball.vz(a1)                                            ; ball.vz = 0.3 * (2 + ball.v)
-                     ; aggiunge l'effetto
+                       ; aggiunge l'effetto
                        move.w     inputdevice.value(a2),d0
                        tst.w      d0
                        beq        .change_state
@@ -979,6 +982,8 @@ process_plstate_kick:
 
 
 ;**************************************************************************************************************************************************************************
+; Stato in cui il calciatore effettua un tiro.
+;**************************************************************************************************************************************************************************
 player_state_kick:
                        lea        player0,a0
                        lea        ball,a1
@@ -992,8 +997,35 @@ player_state_kick:
                        tst.w      d0
                        bne        .calc_v
                        bra        .change_state
-.calc_v                add.w      #2<<6,ball.v(a1)                                          ; ball.v += 2
-                       move.w     player.timer1(a0),d0
+.calc_v                add.w      #96,ball.v(a1)                                            ; ball.v += 1.5
+                       ; velocità verticale
+                       move.w     ball.v(a1),d0
+                       mulu       #7,d0                                                     ; 0.1 * ball.v
+                       lsr.l      #6,d0
+                       move.w     d0,ball.vz(a1)                                            ; ball.vz = 0.1 * ball.v
+                       ; effetto
+                       move.w     inputdevice.value(a2),d0                                  ; joystick in una direzione?
+                       tst.w      d0
+                       beq        .update_shoot_bar
+                       move.w     inputdevice.angle(a2),d0
+                       lsl.w      #6,d0                                                     ; converte in fixed 10.6
+                       move.w     player.kick_angle(a0),d1
+                       sub.w      d1,d0                                                     ; angle_diff = inputdevice.angle - kick_angle
+                       cmp.w      #157<<6,d0                                                ; angle_diff < 157?
+                       blt        .check_sign
+                       bra        .update_shoot_bar
+.check_sign:
+                       tst.w      d0                                                        ; angle_diff < 0?
+                       beq        .update_shoot_bar
+                       blt        .sub_spin
+                       bra        .add_spin
+.sub_spin:
+                       sub.w      #8<<6,ball.s(a1)
+                       bra        .update_shoot_bar           
+.add_spin:
+                       add.w      #8<<6,ball.s(a1)
+                       ; aggiorna la shoot bar
+.update_shoot_bar      move.w     player.timer1(a0),d0
                        mulu       #100,d0                                                   ; converte in centesimi
                        divu       #15,d0                                                    ; player.timer1/15
                        mulu       #6,d0
@@ -1437,7 +1469,7 @@ ball                   dc.w       10<<6                                         
 
 ; tabella con le routine da eseguire per ciascun stato del calciatore
 player_state_jumptable:  
-                       dc.l       process_plstate_standrun
+                       dc.l       player_state_standrun
                        dc.l       player_state_kick
 
 
