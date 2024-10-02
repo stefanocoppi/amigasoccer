@@ -47,6 +47,8 @@ PLAYER_HEIGHT          EQU 20
 PLAYER_H               EQU 12
 PLAYER_STATE_STANDRUN  EQU 0
 PLAYER_STATE_KICK      EQU 1
+PLAYER_STATE_LOPASS    EQU 2
+PLAYER_STATE_HIPASS    EQU 3
 INPUT_TYPE_JOY         EQU 0
 INPUT_TYPE_AI          EQU 1
 BALL_WIDTH             EQU 16
@@ -69,7 +71,7 @@ KICKMODE_HIGHPASS      EQU 3
 GOAL_LINE              EQU 196
 PENALY_AREA_HALF_WIDTH EQU 144
 POTGOR                 EQU $016
-;POTGO                  EQU $034
+
 
 ;**************************************************************************************************************************************************************************
 ; STRUTTURE DATI
@@ -841,7 +843,7 @@ player_state_standrun:
                        bge        .return
                        move.w     inputdevice.fire1(a1),d0
                        tst.w      d0                                                        ; fire1 premuto?
-                       beq        .return
+                       beq        .check_fire2 
                      ;move.w     #3<<6,ball.v(a2)                                          ; ball.v = 2
                      ;move.w     #0,player.v(a0)
                        move.w     #0,player.timer1(a0)
@@ -850,6 +852,16 @@ player_state_standrun:
                        move.w     ball.a(a2),player.kick_angle(a0)
                        move.w     #0,ball.s(a2)
                        move.w     #PLAYER_STATE_KICK,player.state(a0)
+                       bra        .return
+.check_fire2           move.w     inputdevice.fire2(a1),d0                                  ; fire2 premuto?
+                       bne        .lopass
+                       bra        .return
+.lopass                move.w     #0,player.timer1(a0)                                      ; inizializza lo stato lopass
+                       move.w     #1,player.shoot_bar_anim(a0)
+                       move.w     ball.a(a2),player.kick_angle(a0)
+                       move.w     #0,ball.s(a2)                
+                       move.w     #PLAYER_STATE_LOPASS,player.state(a0)                     ; passa allo stato lopass
+                       bra        .return
 .return:
                        rts
 
@@ -1024,6 +1036,41 @@ player_state_kick:
                        bra        .update_shoot_bar           
 .add_spin:
                        add.w      #8<<6,ball.s(a1)
+                       ; aggiorna la shoot bar
+.update_shoot_bar      move.w     player.timer1(a0),d0
+                       mulu       #100,d0                                                   ; converte in centesimi
+                       divu       #15,d0                                                    ; player.timer1/15
+                       mulu       #6,d0
+                       divu       #100,d0                                                   ; converte in int
+                       add.w      #1,d0                                                     ; aggiunge 1 perchè il frame 0 è lo sfondo
+                       move.w     d0,player.shoot_bar_anim(a0)                              ; anima la shoot bar 
+                       bra        .return
+.change_state          move.w     player.timer1(a0),d0
+                       cmp.w      #25,d0                                                    ; player.timer1 > 25?
+                       bgt        .change_state2
+                       bra        .return
+.change_state2         move.w     #PLAYER_STATE_STANDRUN,player.state(a0)
+                       move.w     #1,player.shoot_bar_anim(a0)
+.return                rts
+
+
+;**************************************************************************************************************************************************************************
+; Stato in cui il calciatore effettua un passaggio basso.
+;**************************************************************************************************************************************************************************
+player_state_lopass:
+                       lea        player0,a0
+                       lea        ball,a1
+                       lea        player.inputdevice(a0),a2
+                       add.w      #1,player.timer1(a0)
+                       move.w     player.timer1(a0),d0
+                       cmp.w      #15,d0                                                    ; player.timer1 <= 15?
+                       ble        .check_fire
+                       bra        .change_state
+.check_fire            move.w     inputdevice.fire2(a2),d0                                  ; fire2 premuto?
+                       tst.w      d0
+                       bne        .calc_v
+                       bra        .change_state
+.calc_v                add.w      #128,ball.v(a1)                                           ; ball.v += 2.0
                        ; aggiorna la shoot bar
 .update_shoot_bar      move.w     player.timer1(a0),d0
                        mulu       #100,d0                                                   ; converte in centesimi
@@ -1471,6 +1518,7 @@ ball                   dc.w       10<<6                                         
 player_state_jumptable:  
                        dc.l       player_state_standrun
                        dc.l       player_state_kick
+                       dc.l       player_state_lopass
 
 
 sintable:
