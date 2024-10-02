@@ -166,7 +166,7 @@ wait:
                        bne.s      wait
 
                        bsr        swap_buffers
-                       bsr        read_joy3
+                       bsr        read_joy
                        bsr        ball_update
                        bsr        player_update
                        bsr        update_camera
@@ -302,7 +302,7 @@ update_camera:
 
 
 ;**************************************************************************************************************************************************************************
-; aggiorna la posizione della telecamera
+; aggiorna la posizione della telecamera. Camera centrata sul calciatore.
 ;**************************************************************************************************************************************************************************
 update_camera2:
                        lea        player0,a0
@@ -387,47 +387,12 @@ read_joy2:
 
 
 ;**************************************************************************************************************************************************************************
-; legge il joystick e aggiorna la variabile joy_state
-;**************************************************************************************************************************************************************************
-read_joy:
-                       clr.w      joy_state                                                 ; azzero lo stato del joy
-                       move.w     JOY1DAT(a5),d3
-                       btst.l     #1,d3                                                     ; joy a destra?
-                       beq.s      .checksx
-                       add.w      #1,joy_state  
-                       bra        .checkup
-.checksx:
-                       btst.l     #9,d3                                                     ; joy a sinistra?
-                       beq.s      .checkup
-                       add.w      #2,joy_state
-.checkup:
-                       move.w     d3,d2
-                       lsr.w      #1,d2                                                     ; il bit 9 di JOY1DAT è in posizione 8 in d2
-                       eor.w      d2,d3                                                     ; eor tra il bit 8 e il 9 di JOY1DAT
-                       btst.l     #8,d3                                                     ; joy in alto?
-                       beq.s      .check_down                                               
-                       add.w      #%100,joy_state 
-                       bra.s      .check_fire
-.check_down:
-                       btst.l     #0,d3                                                     ; joy in basso?
-                       beq.s      .check_fire                                                      
-                       add.w      #%1000,joy_state
-.check_fire:
-                       btst       #7,$bfe001                                                ; fire1 premuto?
-                       bne        .end
-                       add.w      #%10000,joy_state
-                       bra        .end
-.end 
-                       rts
-
-
-;**************************************************************************************************************************************************************************
 ; legge il joystick e aggiorna la variabile joy_state: versione che legge joystick a 3 pulsanti.
 ; 
 ; NB: il joystick deve essere connesso in porta 2
 ; in WinUAE, come tipologia di joystick, selezionare Gamepad.
 ;**************************************************************************************************************************************************************************
-read_joy3:
+read_joy:
                        clr.w      joy_state                                                 ; azzero lo stato del joy
                        move.w     JOY1DAT(a5),d3
                        btst.l     #1,d3                                                     ; joy a destra?
@@ -762,6 +727,100 @@ player_state_standrun:
                        bsr        player_get_possession
                        lea        player0,a0
                        lea        player.inputdevice(a0),a1
+                       lea        ball,a2
+                       ; controllo della palla
+                       move.w     player.has_ball(a0),d0
+                       tst.w      d0                                                        ; player.has_ball = 0?
+                       beq        .check_input
+                       move.w     ball.z(a2),d0
+                       cmp.w      #PLAYER_H,d0                                              ; ball.z < PLAYER_H?
+                       blt        .ball_control
+                       bra        .check_input
+.ball_control:
+                       move.w     player.a(a0),d0
+                       tst.w      d0                                                        ; player.a = 0?
+                       beq        .azero
+                       cmp.w      #45<<6,d0                                                 ; player.a = 45?
+                       beq        .a45
+                       cmp.w      #90<<6,d0                                                 ; player.a = 90?
+                       beq        .a90
+                       cmp.w      #135<<6,d0                                                ; player.a = 135?
+                       beq        .a135
+                       cmp.w      #180<<6,d0                                                ; player.a = 180?
+                       beq        .a180
+                       cmp.w      #225<<6,d0                                                ; player.a = 225?
+                       beq        .a225
+                       cmp.w      #270<<6,d0                                                ; player.a = 270?
+                       beq        .a270
+                       cmp.w      #315<<6,d0                                                ; player.a = 315?
+                       beq        .a315
+                       bra        .check_input
+.azero:
+                       move.w     player.x(a0),d0
+                       add.w      #4<<6,d0
+                       move.w     d0,ball.x(a2)
+                       move.w     player.y(a0),d0
+                       add.w      #-1<<6,d0
+                       move.w     d0,ball.y(a2)
+                       bra        .check_input
+.a45:
+                       move.w     player.x(a0),d0
+                       add.w      #4<<6,d0
+                       move.w     d0,ball.x(a2)
+                       move.w     player.y(a0),d0
+                       add.w      #2<<6,d0
+                       move.w     d0,ball.y(a2)
+                       bra        .check_input
+.a90:
+                       move.w     player.x(a0),d0
+                       add.w      #1<<6,d0
+                       move.w     d0,ball.x(a2)
+                       move.w     player.y(a0),d0
+                       add.w      #2<<6,d0
+                       move.w     d0,ball.y(a2)
+                       bra        .check_input
+.a135:
+                       move.w     player.x(a0),d0
+                       add.w      #-4<<6,d0
+                       move.w     d0,ball.x(a2)
+                       move.w     player.y(a0),d0
+                       add.w      #2<<6,d0
+                       move.w     d0,ball.y(a2)
+                       bra        .check_input
+.a180:
+                       move.w     player.x(a0),d0
+                       add.w      #-4<<6,d0
+                       move.w     d0,ball.x(a2)
+                       move.w     player.y(a0),d0
+                       add.w      #-1<<6,d0
+                       move.w     d0,ball.y(a2)
+                       bra        .check_input
+.a225:
+                       move.w     player.x(a0),d0
+                       add.w      #-4<<6,d0
+                       move.w     d0,ball.x(a2)
+                       move.w     player.y(a0),d0
+                       add.w      #-2<<6,d0
+                       move.w     d0,ball.y(a2)
+                       bra        .check_input
+.a270:
+                       move.w     player.x(a0),d0
+                       add.w      #3<<6,d0
+                       move.w     d0,ball.x(a2)
+                       move.w     player.y(a0),d0
+                       add.w      #-2<<6,d0
+                       move.w     d0,ball.y(a2)
+                       bra        .check_input
+.a315:
+                       move.w     player.x(a0),d0
+                       add.w      #4<<6,d0
+                       move.w     d0,ball.x(a2)
+                       move.w     player.y(a0),d0
+                       add.w      #-2<<6,d0
+                       move.w     d0,ball.y(a2)
+                       bra        .check_input
+.check_input:
+                       
                        move.w     inputdevice.value(a1),d0
                        tst.w      d0
                        bne        .moveplayer
@@ -837,7 +896,6 @@ player_state_standrun:
                        move.w     player.has_ball(a0),d0
                        tst.w      d0                                                        ; player.has_ball = 0?
                        beq        .return
-                       lea        ball,a2
                        move.w     ball.z(a2),d0
                        cmp.w      #8<<6,d0                                                  ; ball.z >= 8?
                        bge        .return
@@ -874,133 +932,6 @@ player_state_standrun:
 
 
 ;**************************************************************************************************************************************************************************
-; Stato in cui il calciatore calcia la palla
-;**************************************************************************************************************************************************************************
-process_plstate_kick:
-                       lea        player0,a0
-                       lea        ball,a1
-                       lea        player.inputdevice(a0),a2
-                       add.w      #1,player.timer1(a0)
-                       move.w     player.kick_mode(a0),d0
-                       cmp.w      #KICKMODE_UNKNOWN,d0                                      ; kick_mode = KICKMODE_UNKNOWN?
-                       beq        .calc_kick_mode
-                       cmp.w      #KICKMODE_SHOT,d0
-                       beq        .shooting
-                       cmp.w      #KICKMODE_LOWPASS,d0
-                       beq        .lopass
-                       cmp.w      #KICKMODE_HIGHPASS,d0
-                       beq        .hipass  
-                       bra        .return
-.calc_kick_mode:
-                       move.w     player.timer1(a0),d0
-                       cmp.w      #7,d0                                                     ; player.timer1 >= 7?
-                       bge        .check_fire
-                       bra        .set_ball_v
-.check_fire:
-                       move.w     inputdevice.fire1(a2),d0                                  ; fire premuto?
-                       tst.w      d0
-                       bne        .check_shot
-                       move.w     #3<<6,ball.v(a1)
-                       move.w     #KICKMODE_LOWPASS,player.kick_mode(a0)
-                       bra        .return
-.check_shot:
-                       bsr        ball_is_inside_shot_area
-                       tst.w      d0
-                       beq        .set_hipass
-.set_shooting:
-                       move.w     #3<<6,ball.v(a1)
-                       move.w     #KICKMODE_SHOT,player.kick_mode(a0)
-                       bra        .return
-.set_hipass:
-                       move.w     #3<<6,ball.v(a1)
-                       move.w     #KICKMODE_HIGHPASS,player.kick_mode(a0)
-                       bra        .return
-.shooting:
-                       move.w     player.timer1(a0),d0
-                       cmp.w      #10,d0                                                    ; player.timer1 > 10?
-                       bgt        .check_15
-                       bra        .return
-.check_15:
-                       cmp.w      #15,d0                                                    ; player.timer1 < 15?
-                       blt        .calcv_shoot
-                       bra        .change_state
-.calcv_shoot:
-                       move.w     inputdevice.fire1(a2),d0                                  ; fire premuto?
-                       tst.w      d0
-                       beq        .change_state
-                       add.w      #8<<6,ball.v(a1)                                          ; ball.v += 8
-                       move.w     ball.v(a1),d0
-                       add.w      #0<<6,d0                                                  ; 2 + ball.v
-                       mulu       #7,d0                                                     ; 0.3 * (2 + ball.v)
-                       lsr.l      #6,d0
-                       move.w     d0,ball.vz(a1)                                            ; ball.vz = 0.3 * (2 + ball.v)
-                       ; aggiunge l'effetto
-                       move.w     inputdevice.value(a2),d0
-                       tst.w      d0
-                       beq        .change_state
-                       move.w     inputdevice.angle(a2),d0
-                       lsl.w      #6,d0                                                     ; converte in fixed 10.6
-                       move.w     player.kick_angle(a0),d1
-                       sub.w      d1,d0                                                     ; angle_diff = inputdevice.angle - kick_angle
-                       cmp.w      #157<<6,d0                                                ; angle_diff < 157?
-                       blt        .check_sign
-                       bra        .change_state
-.check_sign:
-                       tst.w      d0                                                        ; angle_diff < 0?
-                       beq        .change_state
-                       blt        .sub_spin
-                       bra        .add_spin
-.sub_spin:
-                       sub.w      #12<<6,ball.s(a1)
-                       bra        .change_state           
-.add_spin:
-                       add.w      #12<<6,ball.s(a1)
-.change_state:
-                       move.w     player.timer1(a0),d0
-                       cmp.w      #17,d0                                                    ; player.timer1 >= 17?
-                       blt        .return
-                       move.w     #PLAYER_STATE_STANDRUN,player.state(a0)
-                       bra        .return
-.set_ball_v:
-                       move.w     player.v(a0),ball.v(a1)
-                       bra        .return
-.lopass:
-                       move.w     player.timer1(a0),d0
-                       cmp.w      #12,d0                                                    ; player.timer1 < 12?
-                       blt        .calc_pass
-                       bra        .change_state
-.calc_pass:
-                        ; move.w     inputdevice.fire1(a2),d0                                   ; fire premuto?
-                        ; tst.w      d0
-                        ; beq        .change_state
-                       add.w      #6<<6,ball.v(a1)                                          ; ball.v += 6
-                       move.w     ball.v(a1),d0
-                    ;  add.w      #4<<6,d0                                                  ; 2 + ball.v
-                    ;  mulu       #6,d0                                                     ; 0.1 * (2 + ball.v)
-                    ;  lsr.l      #6,d0
-                    ;  move.w     d0,ball.vz(a1)                                            ; ball.vz = 0.1 * (2 + ball.v)
-                       bra        .change_state
-.hipass:
-                       move.w     player.timer1(a0),d0
-                       cmp.w      #12,d0                                                    ; player.timer1 < 12?
-                       blt        .calc_hipass
-                       bra        .change_state
-.calc_hipass:
-                       move.w     inputdevice.fire1(a2),d0                                  ; fire premuto?
-                       tst.w      d0
-                       beq        .change_state
-                       add.w      #3<<6,ball.v(a1)                                          ; ball.v += 3
-                       move.w     ball.v(a1),d0
-                       add.w      #0<<6,d0                                                  ; 2 + ball.v
-                       mulu       #32,d0                                                    ; 0.5 * (2 + ball.v)
-                       lsr.l      #6,d0
-                       move.w     d0,ball.vz(a1)  
-                       bra        .change_state
-.return:
-                       rts
-
-
-;**************************************************************************************************************************************************************************
 ; Stato in cui il calciatore effettua un tiro.
 ;**************************************************************************************************************************************************************************
 player_state_kick:
@@ -1027,7 +958,11 @@ player_state_kick:
                        tst.w      d0
                        beq        .update_shoot_bar
                        move.w     inputdevice.angle(a2),d0
-                       lsl.w      #6,d0                                                     ; converte in fixed 10.6
+                       beq        .add360
+                       bra        .convert
+.add360:
+                       add.w      #360,d0
+.convert               lsl.w      #6,d0                                                     ; converte in fixed 10.6
                        move.w     player.kick_angle(a0),d1
                        sub.w      d1,d0                                                     ; angle_diff = inputdevice.angle - kick_angle
                        cmp.w      #157<<6,d0                                                ; angle_diff < 157?
@@ -1148,7 +1083,7 @@ player_get_possession:
                        move.w     ball.x(a1),d2
                        move.w     ball.y(a1),d3
                        bsr        calc_dist
-                       cmp.l      #25,d2                                                    ; distanza palla-calciatore <5?
+                       cmp.l      #49,d2                                                    ; distanza palla-calciatore <7?
                        blo        .checkz
                        bra        .no_possession
 .checkz:
