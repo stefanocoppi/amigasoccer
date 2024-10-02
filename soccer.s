@@ -855,6 +855,8 @@ player_state_standrun:
                        bra        .return
 .check_fire2           move.w     inputdevice.fire2(a1),d0                                  ; fire2 premuto?
                        bne        .lopass
+                       move.w     inputdevice.fire3(a1),d0                                  ; fire3 premuto?
+                       bne        .hipass
                        bra        .return
 .lopass                move.w     #0,player.timer1(a0)                                      ; inizializza lo stato lopass
                        move.w     #1,player.shoot_bar_anim(a0)
@@ -862,6 +864,11 @@ player_state_standrun:
                        move.w     #0,ball.s(a2)                
                        move.w     #PLAYER_STATE_LOPASS,player.state(a0)                     ; passa allo stato lopass
                        bra        .return
+.hipass                move.w     #0,player.timer1(a0)                                      ; inizializza lo stato hipass
+                       move.w     #1,player.shoot_bar_anim(a0)
+                       move.w     ball.a(a2),player.kick_angle(a0)
+                       move.w     #0,ball.s(a2)                
+                       move.w     #PLAYER_STATE_HIPASS,player.state(a0)                     ; passa allo stato hipass
 .return:
                        rts
 
@@ -1071,6 +1078,47 @@ player_state_lopass:
                        bne        .calc_v
                        bra        .change_state
 .calc_v                add.w      #128,ball.v(a1)                                           ; ball.v += 2.0
+                       ; aggiorna la shoot bar
+.update_shoot_bar      move.w     player.timer1(a0),d0
+                       mulu       #100,d0                                                   ; converte in centesimi
+                       divu       #15,d0                                                    ; player.timer1/15
+                       mulu       #6,d0
+                       divu       #100,d0                                                   ; converte in int
+                       add.w      #1,d0                                                     ; aggiunge 1 perchè il frame 0 è lo sfondo
+                       move.w     d0,player.shoot_bar_anim(a0)                              ; anima la shoot bar 
+                       bra        .return
+.change_state          move.w     player.timer1(a0),d0
+                       cmp.w      #25,d0                                                    ; player.timer1 > 25?
+                       bgt        .change_state2
+                       bra        .return
+.change_state2         move.w     #PLAYER_STATE_STANDRUN,player.state(a0)
+                       move.w     #1,player.shoot_bar_anim(a0)
+.return                rts
+
+
+;**************************************************************************************************************************************************************************
+; Stato in cui il calciatore effettua passaggio alto.
+;**************************************************************************************************************************************************************************
+player_state_hipass:
+                       lea        player0,a0
+                       lea        ball,a1
+                       lea        player.inputdevice(a0),a2
+                       add.w      #1,player.timer1(a0)
+                       move.w     player.timer1(a0),d0
+                       cmp.w      #15,d0                                                    ; player.timer1 <= 15?
+                       ble        .check_fire
+                       bra        .change_state
+.check_fire            move.w     inputdevice.fire3(a2),d0                                  ; fire3 premuto?
+                       tst.w      d0
+                       bne        .calc_v
+                       bra        .change_state
+.calc_v                add.w      #64,ball.v(a1)                                            ; ball.v += 1.0
+                       ; velocità verticale
+                       move.w     ball.v(a1),d0
+                       add.w      #2<<6,d0                                                  ; 2 + ball.v
+                       mulu       #19,d0                                                    ; 0.3 * (2+ball.v)
+                       lsr.l      #6,d0
+                       move.w     d0,ball.vz(a1)                                            ; ball.vz = 0.3 * (2+ball.v)
                        ; aggiorna la shoot bar
 .update_shoot_bar      move.w     player.timer1(a0),d0
                        mulu       #100,d0                                                   ; converte in centesimi
@@ -1519,6 +1567,7 @@ player_state_jumptable:
                        dc.l       player_state_standrun
                        dc.l       player_state_kick
                        dc.l       player_state_lopass
+                       dc.l       player_state_hipass
 
 
 sintable:
