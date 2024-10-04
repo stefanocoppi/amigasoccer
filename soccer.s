@@ -173,6 +173,8 @@ wait:
                        bsr        draw_pitch
                        bsr        player_draw
                        bsr        ball_draw
+                       ;bsr        test_font
+                       
 
                        btst       #6,$bfe001                                                ; tasto sinistro del mouse premuto?
                        bne        mainloop                                                  ; se no, torna a waitline
@@ -214,6 +216,7 @@ init_bplpointers:
 ; disegna il campo di gioco usando il blitter.
 ;**************************************************************************************************************************************************************************
 draw_pitch:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        move.w     camera_x,d0                                               ; trasforma da coordinate camera a viewport
                        sub.w      #VIEWPORT_WIDTH/2,d0
                        move.w     d0,viewport_x
@@ -261,6 +264,7 @@ draw_pitch:
                        add.l      #PLF_PLANE_SIZE,d0
                        move.l     d0,a1
                        dbra       d7,.planeloop
+                       movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
 
@@ -268,6 +272,7 @@ draw_pitch:
 ; aggiorna la posizione della telecamera
 ;**************************************************************************************************************************************************************************
 update_camera:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        lea        ball,a0
                        move.w     ball.x(a0),d0                                             ; coordinata x in formato fixed 10.6
                        asr.w      #6,d0                                                     ; converte in int
@@ -275,7 +280,7 @@ update_camera:
                        move.w     ball.y(a0),d0                                             ; coordinata y in formato fixed 10.6
                        asr.w      #6,d0                                                     ; converte in int
                        move.w     d0,camera_y
-                    ; limita il movimento della cam entro il campo di gioco
+                       ; limita il movimento della cam entro il campo di gioco
                        cmp.w      #CAMERA_XMIN,camera_x
                        ble        .minx
                        cmp.w      #CAMERA_XMAX,camera_x
@@ -298,6 +303,7 @@ update_camera:
 .maxy:
                        move.w     #CAMERA_YMAX,camera_y
 .return:
+                       movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
 
@@ -393,6 +399,7 @@ read_joy2:
 ; in WinUAE, come tipologia di joystick, selezionare Gamepad.
 ;**************************************************************************************************************************************************************************
 read_joy:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        clr.w      joy_state                                                 ; azzero lo stato del joy
                        move.w     JOY1DAT(a5),d3
                        btst.l     #1,d3                                                     ; joy a destra?
@@ -435,6 +442,7 @@ read_joy:
                        add.w      #%1000000,joy_state
 .end 
                        move.w     #$ff00,POTGO(a5)                                          ; abilita i pin 12,14 per la lettura
+                       movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
 
@@ -568,9 +576,101 @@ draw_sprite:
 
 
 ;**************************************************************************************************************************************************************************
+; Disegna uno sprite sul draw_buffer.
+; L'immagine dello sprite viene copiata da uno spritesheet.
+;
+; d0.w coordinata x 
+; d1.w coordinata y
+; d3.w colonna dello spritesheet
+; d4.w riga dello spritesheet
+; d5.w larghezza sprite
+; d6.w altezza sprite
+; a1 indirizzo dello spritesheet
+; a2 indirizzo delle maschere
+; a3.w larghezza spritesheet
+; a4.w altezza spritesheet
+;**************************************************************************************************************************************************************************
+draw_sprite2:
+                       movem.l    d0-d7/a0-a4,-(sp)
+                       move.l     draw_buffer,a0
+                       mulu.w     #PLAYFIELD_ROW_SIZE,d1                                    ; calcolo offset_y = PLAYFIELD_ROW_SIZE * y
+                       add.w      d1,a0                                                     ; sommo offset_y ad a0
+                       move       d0,d1
+                       and.w      #$000f,d0                                                 ; seleziono i primi 4 bit che rappresentano lo shift
+                       lsl.w      #8,d0                                                     ; sposto i bit di shift nel nibble più significativo
+                       lsl.w      #4,d0
+                       move.w     d0,d2
+                       or.w       #$0fca,d0                                                 ; inserisco i bit dello shift nel valore da assegnare a BPLCON0
+                       lsr.w      #3,d1                                                     ; calcolo offset_x = x/8
+                       and.w      #$fffe,d1                                                 ; rendo pari l'indirizzo
+                       add.w      d1,a0
+                       move.w     d5,d1                                                     ; SPRITE_WIDTH
+                       asr.w      #3,d1                                                     ; SPRITE_WIDTH/8
+                       mulu       d1,d3                                                     ; offset_x = colonna * (SPRITE_WIDTH/8)
+                       add.w      d3,a1
+                       add.w      d3,a2
+                       mulu       d6,d4                                                     ; SPRITE_HEIGHT * riga
+                       move.w     a3,d1                                                     ; SPRITESHEET_PLAYER_W
+                       asr.w      #3,d1                                                     ; SPRITESHEET_ROW_SIZE = SPRITESHEET_PLAYER_W / 8
+                       mulu       d1,d4                                                     ; offset_y = riga * SPRITE_HEIGHT * SPRITESHEET_ROW_SIZE
+                       add.w      d4,a1
+                       add.w      d4,a2
+                       moveq      #N_PLANES-1,d7
+                     ; calcolo il modulo dei canali A,B (in d1)
+                       move.w     a3,d3                                                     ; SPRITESHEET_PLAYER_W
+                       sub.w      d5,d3                                                     ; SPRITESHEET_PLAYER_W-SPRITE_WIDTH
+                       sub.w      #16,d3                                                    ; SPRITESHEET_PLAYER_W-SPRITE_WIDTH-16
+                       asr.w      #3,d3                                                     ; (SPRITESHEET_PLAYER_W-SPRITE_WIDTH-16)/8
+                     ; calcolo il modulo dei canali C,D
+                       move.w     #PLAYFIELD_WIDTH,d4
+                       sub.w      d5,d4                                                     ; PLAYFIELD_WIDTH-SPRITE_WIDTH
+                       sub.w      #16,d4
+                       asr.w      #3,d4                                                     ; (PLAYFIELD_WIDTH-SPRITE_WIDTH-16)/8
+                     ; calcolo la dimensione della blittata
+                       move.w     d6,d1
+                       lsl.w      #6,d1                                                     ; SPRITE_HEIGHT<<6
+                       add.w      #16,d5                                                    ; SPRITE_WIDTH+16
+                       asr.w      #4,d5                                                     ; (SPRITE_WIDTH+16)/16
+                       add.w      d1,d5                                                     ; SPRITE_HEIGHT<<6+(SPRITE_WIDTH+16)/16
+
+.planeloop:
+                       btst.b     #6,DMACONR(a5)                                            ; lettura dummy
+.bltbusy               btst.b     #6,DMACONR(a5)                                            ; blitter pronto?
+                       bne        .bltbusy
+                       move.w     #$ffff,BLTAFWM(a5)                                        ; nessuna maschera
+                       move.w     #$0000,BLTALWM(a5)                                        ; maschera sull'ultima word
+                       move.w     d0,BLTCON0(a5)                                            
+                       move.w     d2,BLTCON1(a5)
+                       move.w     d3,BLTAMOD(a5)
+                       move.w     d3,BLTBMOD(a5)
+                       move.w     d4,BLTCMOD(a5)
+                       move.w     d4,BLTDMOD(a5)
+                       move.l     a2,BLTAPT(a5)
+                       move.l     a1,BLTBPT(a5) 
+                       move.l     a0,BLTCPT(a5)
+                       move.l     a0,BLTDPT(a5)
+                       move.w     d5,BLTSIZE(a5)
+                       move.l     a0,d1
+                       add.l      #PLF_PLANE_SIZE,d1                                        ; punto al bitplane successivo
+                       move.l     d1,a0
+                       move.w     a3,d6
+                       asr.w      #3,d6                                                     ; SPRITESHEET_PLAYER_W/8
+                       move.w     a4,d1                                                     ; SPRITESHEET_PLAYER_H
+                       mulu       d1,d6                                                     ; SPR_PLANE_SIZE = (SPRITESHEET_PLAYER_W/8)*SPRITESHEET_PLAYER_H
+                       move.l     a1,d1
+                       add.l      d6,d1
+                       move.l     d1,a1
+                       dbra       d7,.planeloop
+.return:
+                       movem.l    (sp)+,d0-d7/a0-a4
+                       rts
+
+
+;**************************************************************************************************************************************************************************
 ; Disegna un calciatore.
 ;**************************************************************************************************************************************************************************
 player_draw:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        lea        player0,a0
                        move.w     player.x(a0),d0                                           ; coordinata x in formato fixed 10.6
                        asr.w      #6,d0                                                     ; converte x in int
@@ -589,7 +689,8 @@ player_draw:
                        tst.w      player.selected(a0)                                       ; player.selected = 0?
                        beq        .return
                        bsr        shoot_bar_draw
-.return:
+
+.return                movem.l    (sp)+,d0-d7/a0-a6
                        rts  
 
 
@@ -597,6 +698,7 @@ player_draw:
 ; Aggiorna lo stato di un calciatore.
 ;**************************************************************************************************************************************************************************
 player_update:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        lea        player0,a0                                                ; calcola la posizione x = x + v * cos(a)
                        lea        costable,a1
                        move.w     player.v(a0),d0
@@ -615,6 +717,7 @@ player_update:
                        add.w      d0,player.y(a0)                                           ; y = y + v * sin(a) 
                        bsr        player_update_input
                        bsr        player_process_state
+                       movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
 
@@ -622,12 +725,14 @@ player_update:
 ; Chiama la routine di gestione dello stato corrente del calciatore, usando la jumptable
 ;**************************************************************************************************************************************************************************
 player_process_state:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        lea        player_state_jumptable,a1
                        lea        player0,a0
                        move.w     player.state(a0),d0
                        lsl.w      #2,d0                                                     ; moltiplica lo stato per 4 per puntare all'elemento corrispondente della tabella
                        move.l     0(a1,d0.w),a1                                             ; indirizzo della routine
                        jsr        (a1)
+                       movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
 
@@ -635,13 +740,14 @@ player_process_state:
 ; Aggiorna l'input del calciatore
 ;**************************************************************************************************************************************************************************
 player_update_input:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        lea        player0,a0
                        lea        player.inputdevice(a0),a1
                        move.w     player.inputtype(a0),d0
                        cmp.w      #INPUT_TYPE_JOY,d0                                        ; l'input_type è joystick?
                        beq        .joy
 .joy:
-                    ; in base allo stato del joystick, imposta angolo e value dell'input_device del calciatore
+                      ; in base allo stato del joystick, imposta angolo e value dell'input_device del calciatore
                        move.w     joy_state,d0
                        and.w      #$000f,d0                                                 ; preleva solo i primi 4 bit che indicano la direzione
                        cmp.w      #1,d0                                                     ; joy a dx?
@@ -717,6 +823,7 @@ player_update_input:
 .set_fire3:
                        move.w     #1,inputdevice.fire3(a1)
 .return:
+                       movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
 
@@ -724,6 +831,7 @@ player_update_input:
 ; Stato in cui il calciatore può correre o fermarsi
 ;**************************************************************************************************************************************************************************
 player_state_standrun:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        bsr        player_get_possession
                        lea        player0,a0
                        lea        player.inputdevice(a0),a1
@@ -928,6 +1036,7 @@ player_state_standrun:
                        move.w     #0,ball.s(a2)                
                        move.w     #PLAYER_STATE_HIPASS,player.state(a0)                     ; passa allo stato hipass
 .return:
+                       movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
 
@@ -935,6 +1044,7 @@ player_state_standrun:
 ; Stato in cui il calciatore effettua un tiro.
 ;**************************************************************************************************************************************************************************
 player_state_kick:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        lea        player0,a0
                        lea        ball,a1
                        lea        player.inputdevice(a0),a2
@@ -993,13 +1103,15 @@ player_state_kick:
                        bra        .return
 .change_state2         move.w     #PLAYER_STATE_STANDRUN,player.state(a0)
                        move.w     #1,player.shoot_bar_anim(a0)
-.return                rts
+.return                movem.l    (sp)+,d0-d7/a0-a6
+                       rts
 
 
 ;**************************************************************************************************************************************************************************
 ; Stato in cui il calciatore effettua un passaggio basso.
 ;**************************************************************************************************************************************************************************
 player_state_lopass:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        lea        player0,a0
                        lea        ball,a1
                        lea        player.inputdevice(a0),a2
@@ -1028,13 +1140,15 @@ player_state_lopass:
                        bra        .return
 .change_state2         move.w     #PLAYER_STATE_STANDRUN,player.state(a0)
                        move.w     #1,player.shoot_bar_anim(a0)
-.return                rts
+.return                movem.l    (sp)+,d0-d7/a0-a6
+                       rts
 
 
 ;**************************************************************************************************************************************************************************
 ; Stato in cui il calciatore effettua passaggio alto.
 ;**************************************************************************************************************************************************************************
 player_state_hipass:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        lea        player0,a0
                        lea        ball,a1
                        lea        player.inputdevice(a0),a2
@@ -1069,13 +1183,15 @@ player_state_hipass:
                        bra        .return
 .change_state2         move.w     #PLAYER_STATE_STANDRUN,player.state(a0)
                        move.w     #1,player.shoot_bar_anim(a0)
-.return                rts
+.return                movem.l    (sp)+,d0-d7/a0-a6 
+                       rts
 
 
 ;**************************************************************************************************************************************************************************
 ; Verifica se il calciatore può entrare in possesso di palla.
 ;**************************************************************************************************************************************************************************
 player_get_possession:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        lea        player0,a0
                        lea        ball,a1
                        move.w     player.x(a0),d0
@@ -1106,6 +1222,7 @@ player_get_possession:
                        move.w     #0,ball.owner(a1)
                        move.w     #0,player.has_ball(a0)
 .return:
+                       movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
 
@@ -1141,6 +1258,7 @@ calc_dist:
 ; disegna la palla
 ;**************************************************************************************************************************************************************************
 ball_draw:
+                       movem.l    d0-d7/a0-a6,-(sp)
                        lea        ball,a0
                        move.w     ball.x(a0),d0
                        asr        #6,d0                                                     ; converte da fixed 10.6 a int
@@ -1166,6 +1284,7 @@ ball_draw:
                        asr.w      #6,d1                                                     ; converte da fixed 10.6 a int
                        move.w     ball.animx(a0),d3 
                        bsr        draw_sprite
+                       movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
 
@@ -1173,7 +1292,8 @@ ball_draw:
 ; aggiorna lo stato della palla
 ;**************************************************************************************************************************************************************************
 ball_update:
-                     ; calcola lo spin (effetto)
+                       movem.l    d0-d7/a0-a6,-(sp)
+                       ; calcola lo spin (effetto)
                        lea        ball,a0
                        move.w     ball.s(a0),d0
                        muls       #SPIN_FACTOR,d0                                           ; SPIN_FACTOR * s
@@ -1185,7 +1305,7 @@ ball_update:
                        muls       d1,d0                                                     ; s *= 1 - SPIN_DAMPENING
                        asr.l      #6,d0
                        move.w     d0,ball.s(a0)
-                     ; aggiorna la posizione                    
+                       ; aggiorna la posizione                    
                        lea        costable,a1                                               ; calcola la posizione x = x + v * cos(a)
                        move.w     ball.v(a0),d0
                        move.w     ball.a(a0),d1
@@ -1209,7 +1329,7 @@ ball_update:
                        add.w      d0,ball.y(a0)                                             ; y = y + v * sin(a)
                        move.w     ball.vz(a0),d0
                        add.w      d0,ball.z(a0)
-                     ; applica l'attrito dell'erba
+                       ; applica l'attrito dell'erba
                        cmp.w      #1<<6,ball.z(a0)                                          ; Z < 1?
                        blt        .grass_friction
                        bra        .test_gravity
@@ -1233,7 +1353,7 @@ ball_update:
 .v_le_zero:
                        move.w     #0,ball.v(a0)                                             ; v = 0
 .test_gravity:
-                     ; applica la gravità
+                       ; applica la gravità
                        tst.w      ball.z(a0)
                        bgt        .gravity                                                  ; se z > 0 applica la gravità
                        bra        .rimbalzo
@@ -1260,7 +1380,7 @@ ball_update:
 .zero:
                        move.w     #0,ball.vz(a0)
 .anim:
-                     ; animazione
+                       ; animazione
                        move.w     ball.v(a0),d0                                             ; se v = 0 allora non cambio frame
                        tst.w      d0
                        beq        .return
@@ -1294,6 +1414,7 @@ ball_update:
 .neg:
                        move.w     #-1,ball.x_side(a0)
 .return2:
+                       movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
 
@@ -1407,6 +1528,8 @@ ball_is_inside_shot_area:
 
 
 ;**************************************************************************************************************************************************************************
+; Disegna la shootbar.
+;**************************************************************************************************************************************************************************
 shoot_bar_draw:
                        movem.l    d0-d7/a0-a6,-(sp)
 
@@ -1433,6 +1556,180 @@ shoot_bar_draw:
                        bsr        draw_sprite
                       
 .return                movem.l    (sp)+,d0-d7/a0-a6
+                       rts
+
+
+;**************************************************************************************************************************************************************************
+draw_char:
+                       ; parametri: 
+                       ; d0.w coordinata x 
+                       ; d1.w coordinata y
+                       ; d3.b codice ascii del carattere
+                       
+                       movem.l    d0-d7/a0-a6,-(sp)
+
+                       ext.w      d3
+                       sub.w      #44,d3                                                    ; sottrae codice ascii di ',' in modo da avere un indica che parte da zero
+                       divu       #13,d3                                                    ; divido per il numero di caratteri in una riga
+                       move.w     d3,d4                                                     ; riga dello spritesheet
+                       swap       d3                                                        ; colonna: è il resto della divisione, che viene spostato nella parte meno signif.
+                       move.w     #16,d5                                                    ; larghezza sprite
+                       move.w     #7,d6                                                     ; altezza sprite
+                       lea        font,a1                                                   ; indirizzo dello spritesheet
+                       lea        font_mask,a2                                              ; indirizzo delle maschere
+                       move.w     #208,a3                                                   ; larghezza spritesheet
+                       move.w     #28,a4                                                    ; altezza spritesheet
+                       bsr        draw_sprite2
+
+                       movem.l    (sp)+,d0-d7/a0-a6
+                       rts
+
+;**************************************************************************************************************************************************************************
+draw_string:
+                       ; parametri:
+                       ; d0.w coordinata x 
+                       ; d1.w coordinata y
+                       ; a0   indirizzo della stringa, terminata da uno 0
+
+                       movem.l    d0-d7/a0-a6,-(sp)
+
+.loop                  move.b     (a0)+,d3                                                  ; preleva un carattere della stringa
+                       tst.b      d3                                                        ; il codice carattere è 0?
+                       beq        .return
+                       bsr        draw_char
+                       add.w      #7,d0                                                     ; sposta la coordinata x sul carattere successivo
+                       bra        .loop
+
+.return                movem.l    (sp)+,d0-d7/a0-a6
+                       rts
+
+;**************************************************************************************************************************************************************************
+dec_2_string:
+                       ; converte un numero decimale in una stringa
+                       ;
+                       ; parametri:
+                       ; d0.w - numero da convertire (-32767,32767)
+                       ; a0   - indirizzo della stringa
+                       movem.l    d0-d7/a0-a6,-(sp)
+
+                       btst.l     #15,d0                                                    ; numero negativo?
+                       bne        .compl2
+                       bra        .convert
+.compl2                move.w     #$ffff,d1
+                       sub.w      d0,d1
+                       add.w      #1,d1
+                       move.w     d1,d0
+                       move.b     #'-',(a0)+                                                ; segno meno
+.convert
+                       ext.l      d0
+                       divu       #10000,d0
+                       bne        .write
+                       bra        .continue
+.write                 add.w      #'0',d0                                                   ; converte in ascii
+                       move.b     d0,(a0)+                                                  ; scrive la cifra numerica nella stringa
+.continue              swap       d0                                                        ; considera il resto
+                       ext.l      d0
+                       divu       #1000,d0
+                       bne        .write2
+                       bra        .continue2
+.write2                add.w      #'0',d0                                                   ; converte in ascii
+                       move.b     d0,(a0)+                                                  ; scrive la cifra numerica nella stringa
+.continue2             swap       d0
+                       ext.l      d0 
+                       divu       #100,d0
+                       bne        .write3
+                       bra        .continue3
+.write3                add.w      #'0',d0                                                   ; converte in ascii
+                       move.b     d0,(a0)+                                                  ; scrive la cifra numerica nella stringa
+.continue3             swap       d0
+                       ext.l      d0
+                       divu       #10,d0
+                       bne        .write4
+                       bra        .continue4
+.write4                add.w      #'0',d0                                                   ; converte in ascii
+                       move.b     d0,(a0)+                                                  ; scrive la cifra numerica nella stringa
+.continue4             swap       d0
+                       ext.l      d0
+                       divu       #1,d0
+                       bne        .write5
+                       bra        .continue5
+.write5                add.w      #'0',d0                                                   ; converte in ascii
+                       move.b     d0,(a0)+                                                  ; scrive la cifra numerica nella stringa
+.continue5             move.b     #0,(a0)                                                   ; terminatore
+.return                movem.l    (sp)+,d0-d7/a0-a6   
+                       rts
+
+
+;**************************************************************************************************************************************************************************
+hex_2_string:
+                       ; converte un numero esadecimale in una stringa
+                       ;
+                       ; parametri:
+                       ; d0.w - numero esadecimale da convertire ($0000,$FFFF)
+                       ; a0   - indirizzo della stringa
+                       movem.l    d0-d7/a0-a6,-(sp)
+
+                       and.l      #$ffff,d0
+                       divu       #$1000,d0
+                       cmp.w      #10,d0
+                       bge        .conv
+                       add.w      #'0',d0                                                   ; converte in ascii
+                       bra        .write
+.conv                  sub.w      #10,d0
+                       add.w      #'A',d0                       
+.write                 move.b     d0,(a0)+                                                  ; scrive la cifra numerica nella stringa
+                       swap       d0                                                        ; considera il resto
+                       and.l      #$ffff,d0
+                       divu       #$100,d0
+                       cmp.w      #10,d0
+                       bge        .conv2
+                       add.w      #'0',d0                                                   ; converte in ascii
+                       bra        .write2
+.conv2                 sub.w      #10,d0
+                       add.w      #'A',d0                       
+.write2                move.b     d0,(a0)+                                                  ; scrive la cifra numerica nella stringa
+                       swap       d0                                                        ; considera il resto
+                       and.l      #$ffff,d0
+                       divu       #$10,d0
+                       cmp.w      #10,d0
+                       bge        .conv3
+                       add.w      #'0',d0                                                   ; converte in ascii
+                       bra        .write3
+.conv3                 sub.w      #10,d0
+                       add.w      #'A',d0                       
+.write3                move.b     d0,(a0)+                                                  ; scrive la cifra numerica nella stringa
+                       swap       d0                                                        ; considera il resto
+                       and.l      #$ffff,d0
+                       divu       #$1,d0
+                       cmp.w      #10,d0
+                       bge        .conv4
+                       add.w      #'0',d0                                                   ; converte in ascii
+                       bra        .write4
+.conv4                 sub.w      #10,d0
+                       add.w      #'A',d0                       
+.write4                move.b     d0,(a0)+                                                  ; scrive la cifra numerica nella stringa
+                       move.b     #0,(a0)                                                   ; terminatore
+.return                movem.l    (sp)+,d0-d7/a0-a6   
+                       rts
+
+
+;**************************************************************************************************************************************************************************
+test_font:
+                       ;movem.l    d0-d3/a0,-(sp)
+                       
+                      ;  move.b     #'8',d3                                                   ; codice ascii del carattere
+                      ;  bsr        draw_char
+                       ;lea        test_string,a0
+                       lea        dec_string,a0
+                       ;move.w     #$fa10,d0
+                       move.w     #-12569,d0
+                       ;bsr        hex_2_string
+                       bsr        dec_2_string
+                       move.w     #16,d0                                                    ; coordinata x
+                       move.w     #27,d1                                                    ; coordinata y
+                       bsr        draw_string
+                       
+                       ;movem.l    (sp)+,d0-d3/a0
                        rts
 
 
@@ -1503,6 +1800,12 @@ player_state_jumptable:
                        dc.l       player_state_kick
                        dc.l       player_state_lopass
                        dc.l       player_state_hipass
+
+
+test_string            dc.b       "TEST DRAW STRING",0,0
+                       even
+
+dec_string             dcb.b      8
 
 
 sintable:
@@ -1672,7 +1975,7 @@ bplpointers:
                        dc.w       $e8,$0000,$ea,$0000                                       ; BPL2PT
                        dc.w       $ec,$0000,$ee,$0000                                       ; BPL3PT
 
-  ; azzera i puntatori agli sprite
+; azzera i puntatori agli sprite
                        dc.w       $120,$0000,$122,$0000,$124,$0000,$126,$0000,$128,$0000
                        dc.w       $12a,$0000,$12c,$0000,$12e,$0000,$130,$0000,$132,$0000
                        dc.w       $134,$0000,$136,$0000,$138,$0000,$13a,$0000,$13c,$0000
@@ -1694,6 +1997,9 @@ ball_mask              incbin     "gfx/ball.mask"
 
 shoot_bar              incbin     "gfx/shoot_bar.raw"                                       ; barra potenza tiro 16x40, 4bpp, 1 colonna, 8 righe, frame_size: 16x5
 shoot_bar_mask         incbin     "gfx/shoot_bar.mask"
+
+font                   incbin     "gfx/font.raw"                                            ; font 4bpp, 13 x 4, frame_size: 16x7
+font_mask              incbin     "gfx/font.mask"
 
 
 ;**************************************************************************************************************************************************************************
