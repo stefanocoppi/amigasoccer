@@ -71,7 +71,7 @@ KICKMODE_HIGHPASS      EQU 3
 GOAL_LINE              EQU 196
 PENALY_AREA_HALF_WIDTH EQU 144
 POTGOR                 EQU $016
-
+NUM_PLAYERS_PER_TEAM   EQU 18
 
 ;**************************************************************************************************************************************************************************
 ; STRUTTURE DATI
@@ -130,7 +130,14 @@ ball.owner             rs.w       1                                             
 ball.x_side            rs.w       1                                                         ; indica in quale parte di campo orizzontale si trova: -1 alla sinistra, 1 alla destra
 ball.length            rs.b       0
 
-
+; squadra
+                       rsreset
+team.name              rs.b       16
+team.short_name        rs.b       4
+team.side              rs.w       1                                                         ; indica la propria area: -1 sopra, 1 sotto
+team.players           rs.b       player.length * NUM_PLAYERS_PER_TEAM
+team.lineup            rs.b       player.length * 11
+team.length            rs.b       0
 
                        SECTION    codice,CODE 
 
