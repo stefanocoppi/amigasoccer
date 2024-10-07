@@ -173,11 +173,9 @@ wait:
                        bsr        swap_buffers
                        bsr        read_joy
                        bsr        ball_update
-                       bsr        player_update
+                       bsr        team_update
                        bsr        update_camera
                        bsr        draw_pitch
-                      ;  lea        player0,a0
-                      ;  bsr        player_draw
                        bsr        team_draw
                        bsr        ball_draw
                        ;bsr        test_font
@@ -705,10 +703,12 @@ player_draw:
 
 ;**************************************************************************************************************************************************************************
 ; Aggiorna lo stato di un calciatore.
+;
+; parametri:
+; a0 - indirizzo della struttura dati del calciatore
 ;**************************************************************************************************************************************************************************
 player_update:
                        movem.l    d0-d7/a0-a6,-(sp)
-                       lea        player0,a0                                                ; calcola la posizione x = x + v * cos(a)
                        lea        costable,a1
                        move.w     player.v(a0),d0
                        move.w     player.a(a0),d1
@@ -732,11 +732,13 @@ player_update:
 
 ;**************************************************************************************************************************************************************************
 ; Chiama la routine di gestione dello stato corrente del calciatore, usando la jumptable
+;
+; parametri:
+; a0 - indirizzo della struttura dati del calciatore
 ;**************************************************************************************************************************************************************************
 player_process_state:
                        movem.l    d0-d7/a0-a6,-(sp)
                        lea        player_state_jumptable,a1
-                       lea        player0,a0
                        move.w     player.state(a0),d0
                        lsl.w      #2,d0                                                     ; moltiplica lo stato per 4 per puntare all'elemento corrispondente della tabella
                        move.l     0(a1,d0.w),a1                                             ; indirizzo della routine
@@ -747,14 +749,17 @@ player_process_state:
 
 ;**************************************************************************************************************************************************************************
 ; Aggiorna l'input del calciatore
+;
+; parametri:
+; a0 - indirizzo della struttura dati del calciatore
 ;**************************************************************************************************************************************************************************
 player_update_input:
                        movem.l    d0-d7/a0-a6,-(sp)
-                       lea        player0,a0
                        lea        player.inputdevice(a0),a1
                        move.w     player.inputtype(a0),d0
                        cmp.w      #INPUT_TYPE_JOY,d0                                        ; l'input_type è joystick?
                        beq        .joy
+                       bra        .return
 .joy:
                       ; in base allo stato del joystick, imposta angolo e value dell'input_device del calciatore
                        move.w     joy_state,d0
@@ -838,11 +843,13 @@ player_update_input:
 
 ;**************************************************************************************************************************************************************************
 ; Stato in cui il calciatore può correre o fermarsi
+;
+; parametri:
+; a0 - indirizzo della struttura dati del calciatore
 ;**************************************************************************************************************************************************************************
 player_state_standrun:
                        movem.l    d0-d7/a0-a6,-(sp)
                        bsr        player_get_possession
-                       lea        player0,a0
                        lea        player.inputdevice(a0),a1
                        lea        ball,a2
                        ; controllo della palla
@@ -1050,10 +1057,12 @@ player_state_standrun:
 
 ;**************************************************************************************************************************************************************************
 ; Stato in cui il calciatore effettua un tiro.
+;
+; parametri:
+; a0 - indirizzo della struttura dati del calciatore
 ;**************************************************************************************************************************************************************************
 player_state_kick:
                        movem.l    d0-d7/a0-a6,-(sp)
-                       lea        player0,a0
                        lea        ball,a1
                        lea        player.inputdevice(a0),a2
                        add.w      #1,player.timer1(a0)
@@ -1117,10 +1126,12 @@ player_state_kick:
 
 ;**************************************************************************************************************************************************************************
 ; Stato in cui il calciatore effettua un passaggio basso.
+;
+; parametri:
+; a0 - indirizzo della struttura dati del calciatore
 ;**************************************************************************************************************************************************************************
 player_state_lopass:
                        movem.l    d0-d7/a0-a6,-(sp)
-                       lea        player0,a0
                        lea        ball,a1
                        lea        player.inputdevice(a0),a2
                        add.w      #1,player.timer1(a0)
@@ -1154,10 +1165,12 @@ player_state_lopass:
 
 ;**************************************************************************************************************************************************************************
 ; Stato in cui il calciatore effettua passaggio alto.
+;
+; parametri:
+; a0 - indirizzo della struttura dati del calciatore
 ;**************************************************************************************************************************************************************************
 player_state_hipass:
                        movem.l    d0-d7/a0-a6,-(sp)
-                       lea        player0,a0
                        lea        ball,a1
                        lea        player.inputdevice(a0),a2
                        add.w      #1,player.timer1(a0)
@@ -1197,10 +1210,12 @@ player_state_hipass:
 
 ;**************************************************************************************************************************************************************************
 ; Verifica se il calciatore può entrare in possesso di palla.
+;
+; parametri:
+; a0 - indirizzo della struttura dati del calciatore
 ;**************************************************************************************************************************************************************************
 player_get_possession:
                        movem.l    d0-d7/a0-a6,-(sp)
-                       lea        player0,a0
                        lea        ball,a1
                        move.w     player.x(a0),d0
                        move.w     player.y(a0),d1
@@ -1537,11 +1552,12 @@ ball_is_inside_shot_area:
 
 ;**************************************************************************************************************************************************************************
 ; Disegna la shootbar.
+;
+; parametri:
+; a0 - indirizzo della struttura dati del calciatore
 ;**************************************************************************************************************************************************************************
 shoot_bar_draw:
                        movem.l    d0-d7/a0-a6,-(sp)
-
-                       lea        player0,a0
 
                        ; disegna lo sfondo della shoot bar
                        move.w     player.x(a0),d0                                           
@@ -1752,6 +1768,24 @@ team_draw:
                        moveq      #11-1,d7
 .loop:
                        bsr        player_draw
+                       add.l      #player.length,a0
+                       dbra       d7,.loop
+
+.return                movem.l    (sp)+,d0-d7/a0-a6
+                       rts
+
+
+;**************************************************************************************************************************************************************************
+; Aggiorna lo stato di tutti i calciatori di una squadra
+;**************************************************************************************************************************************************************************
+team_update:
+                       movem.l    d0-d7/a0-a6,-(sp)
+
+                       move.l     home_team,a1
+                       lea        team.players(a1),a0 
+                       moveq      #11-1,d7
+.loop:
+                       bsr        player_update
                        add.l      #player.length,a0
                        dbra       d7,.loop
 
