@@ -171,16 +171,16 @@ wait:
                        bne.s      wait
 
                        bsr        swap_buffers
-                      ;  bsr        read_joy
-                      ;  bsr        ball_update
-                      ;  bsr        player_update
-                      ;  bsr        update_camera
-                      ;  bsr        draw_pitch
+                       bsr        read_joy
+                       bsr        ball_update
+                       bsr        player_update
+                       bsr        update_camera
+                       bsr        draw_pitch
                       ;  lea        player0,a0
-                      ;  ;bsr        player_draw
-                      ;  ;bsr        team_draw
-                      ;  bsr        ball_draw
-                      ;  ;bsr        test_font
+                      ;  bsr        player_draw
+                       bsr        team_draw
+                       bsr        ball_draw
+                       ;bsr        test_font
                        
 
                        btst       #6,$bfe001                                                ; tasto sinistro del mouse premuto?
@@ -1747,10 +1747,11 @@ test_font:
 team_draw:
                        movem.l    d0-d7/a0-a6,-(sp)
 
-                       move.l     #home_team,a1
+                       move.l     home_team,a1
                        lea        team.players(a1),a0 
-                       move.w     #11-1,d7
-.loop                  bsr        player_draw
+                       moveq      #11-1,d7
+.loop:
+                       bsr        player_draw
                        add.l      #player.length,a0
                        dbra       d7,.loop
 
