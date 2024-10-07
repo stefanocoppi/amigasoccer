@@ -19,7 +19,7 @@ Enable                 EQU -$7e
 OpenLibrary            EQU -$198
 CloseLibrary           EQU -$19e
 
-                     ;5432109876543210
+                           ;5432109876543210
 DMASET                 EQU %1000001111000000                                                ; copper,bitplane,blitter DMA
 N_PLANES               EQU 4                                                                ; numero di bitplanes
 PITCH_WIDTH            EQU 640
@@ -171,14 +171,16 @@ wait:
                        bne.s      wait
 
                        bsr        swap_buffers
-                       bsr        read_joy
-                       bsr        ball_update
-                       bsr        player_update
-                       bsr        update_camera
-                       bsr        draw_pitch
-                       bsr        player_draw
-                       bsr        ball_draw
-                       ;bsr        test_font
+                      ;  bsr        read_joy
+                      ;  bsr        ball_update
+                      ;  bsr        player_update
+                      ;  bsr        update_camera
+                      ;  bsr        draw_pitch
+                      ;  lea        player0,a0
+                      ;  ;bsr        player_draw
+                      ;  ;bsr        team_draw
+                      ;  bsr        ball_draw
+                      ;  ;bsr        test_font
                        
 
                        btst       #6,$bfe001                                                ; tasto sinistro del mouse premuto?
@@ -673,10 +675,12 @@ draw_sprite2:
 
 ;**************************************************************************************************************************************************************************
 ; Disegna un calciatore.
+;
+; parametri:
+; a0 - indirizzo della struttura dati del calciatore
 ;**************************************************************************************************************************************************************************
 player_draw:
                        movem.l    d0-d7/a0-a6,-(sp)
-                       lea        player0,a0
                        move.w     player.x(a0),d0                                           ; coordinata x in formato fixed 10.6
                        asr.w      #6,d0                                                     ; converte x in int
                        move.w     player.y(a0),d1                                           ; coordinata y
@@ -1738,6 +1742,23 @@ test_font:
 
 
 ;**************************************************************************************************************************************************************************
+; Disegna tutti i calciatori di una squadra
+;**************************************************************************************************************************************************************************
+team_draw:
+                       movem.l    d0-d7/a0-a6,-(sp)
+
+                       move.l     #home_team,a1
+                       lea        team.players(a1),a0 
+                       move.w     #11-1,d7
+.loop                  bsr        player_draw
+                       add.l      #player.length,a0
+                       dbra       d7,.loop
+
+.return                movem.l    (sp)+,d0-d7/a0-a6
+                       rts
+
+
+;**************************************************************************************************************************************************************************
 ; variabili
 ;**************************************************************************************************************************************************************************
 gfx_name:
@@ -1811,6 +1832,9 @@ test_string            dc.b       "TEST DRAW STRING",0,0
 dec_string             dcb.b      8
 
                        include    "teams.i"
+
+home_team              dc.l       team_inter
+away_team              dc.l       0
 
 sintable:
 ;@generated-datagen-start----------------
