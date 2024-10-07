@@ -71,7 +71,7 @@ KICKMODE_HIGHPASS      EQU 3
 GOAL_LINE              EQU 196
 PENALY_AREA_HALF_WIDTH EQU 144
 POTGOR                 EQU $016
-NUM_PLAYERS_PER_TEAM   EQU 18
+NUM_PLAYERS_PER_TEAM   EQU 11
 
 ;**************************************************************************************************************************************************************************
 ; STRUTTURE DATI
@@ -94,7 +94,6 @@ player.anim_counter    rs.w       1
 player.id              rs.w       1                                                         ; id univoco
 player.has_ball        rs.w       1                                                         ; 1 se è in possesso della palla, 0 altrimenti
 player.timer1          rs.w       1
-player.kick_mode       rs.w       1                                                         ; modalità di calcio della palla
 player.side            rs.w       1                                                         ; indica qual'è la metà campo della propria squadra: -1 sopra, 1 sotto
 player.selected        rs.w       1                                                         ; 1 indica che è selezionato per essere controllato, 0 altrimenti
 player.kick_angle      rs.w       1                                                         ; angolo di tiro (0-359, in formato fixed 10.6)
@@ -136,7 +135,6 @@ team.name              rs.b       16
 team.short_name        rs.b       4
 team.side              rs.w       1                                                         ; indica la propria area: -1 sopra, 1 sotto
 team.players           rs.b       player.length * NUM_PLAYERS_PER_TEAM
-team.lineup            rs.b       player.length * 11
 team.length            rs.b       0
 
                        SECTION    codice,CODE 
@@ -1021,7 +1019,6 @@ player_state_standrun:
                      ;move.w     #0,player.v(a0)
                        move.w     #0,player.timer1(a0)
                        move.w     #1,player.shoot_bar_anim(a0)
-                       move.w     #KICKMODE_UNKNOWN,player.kick_mode(a0)
                        move.w     ball.a(a2),player.kick_angle(a0)
                        move.w     #0,ball.s(a2)
                        move.w     #PLAYER_STATE_KICK,player.state(a0)
@@ -1780,7 +1777,6 @@ player0                dc.w       -20<<6                                        
                        dc.w       1                                                         ; player.id 
                        dc.w       0                                                         ; player.has_ball
                        dc.w       0                                                         ; player.timer1
-                       dc.w       KICKMODE_UNKNOWN                                          ; player.kick_mode
                        dc.w       -1                                                        ; player.side
                        dc.w       1                                                         ; player.selected
                        dc.w       0                                                         ; player.kick_angle
@@ -1814,6 +1810,7 @@ test_string            dc.b       "TEST DRAW STRING",0,0
 
 dec_string             dcb.b      8
 
+                       include    "teams.i"
 
 sintable:
 ;@generated-datagen-start----------------
