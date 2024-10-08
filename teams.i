@@ -15,6 +15,7 @@ team_inter:
            dcb.b    10
            dc.b     'INT',0                  ; short_name
            dc.w     -1                       ; team.side
+           dc.l     0                        ; team.near_ball
 .player1   dc.w     -20<<6                   ; posizione x
            dc.w     0<<6                     ; posizione y
            dc.w     0<<6                     ; player.v
@@ -38,6 +39,7 @@ team_inter:
            dc.w     1                        ; player.selected
            dc.w     0                        ; player.kick_angle
            dc.w     1                        ; player.shoot_bar_anim
+           dc.w     0                        ; player.ball_distance
 .player2   dc.w     -20<<6                   ; posizione x
            dc.w     -14<<6                   ; posizione y
            dc.w     0<<6                     ; player.v
@@ -61,6 +63,7 @@ team_inter:
            dc.w     0                        ; player.selected
            dc.w     0                        ; player.kick_angle
            dc.w     1                        ; player.shoot_bar_anim
+           dc.w     0                        ; player.ball_distance
 .player3   dc.w     -20<<6                   ; posizione x
            dc.w     -28<<6                   ; posizione y
            dc.w     0<<6                     ; player.v
@@ -84,6 +87,7 @@ team_inter:
            dc.w     0                        ; player.selected
            dc.w     0                        ; player.kick_angle
            dc.w     1                        ; player.shoot_bar_anim
+           dc.w     0                        ; player.ball_distance
 .player4   dc.w     -20<<6                   ; posizione x
            dc.w     -42<<6                   ; posizione y
            dc.w     0<<6                     ; player.v
@@ -107,6 +111,7 @@ team_inter:
            dc.w     0                        ; player.selected
            dc.w     0                        ; player.kick_angle
            dc.w     1                        ; player.shoot_bar_anim
+           dc.w     0                        ; player.ball_distance
 .player5   dc.w     -20<<6                   ; posizione x
            dc.w     -56<<6                   ; posizione y
            dc.w     0<<6                     ; player.v
@@ -130,6 +135,7 @@ team_inter:
            dc.w     0                        ; player.selected
            dc.w     0                        ; player.kick_angle
            dc.w     1                        ; player.shoot_bar_anim
+           dc.w     0                        ; player.ball_distance
 .player6   dc.w     -20<<6                   ; posizione x
            dc.w     -70<<6                   ; posizione y
            dc.w     0<<6                     ; player.v
@@ -153,6 +159,7 @@ team_inter:
            dc.w     0                        ; player.selected
            dc.w     0                        ; player.kick_angle
            dc.w     1                        ; player.shoot_bar_anim
+           dc.w     0                        ; player.ball_distance
 .player7   dc.w     -20<<6                   ; posizione x
            dc.w     -84<<6                   ; posizione y
            dc.w     0<<6                     ; player.v
@@ -176,6 +183,7 @@ team_inter:
            dc.w     0                        ; player.selected
            dc.w     0                        ; player.kick_angle
            dc.w     1                        ; player.shoot_bar_anim
+           dc.w     0                        ; player.ball_distance
 .player8   dc.w     -20<<6                   ; posizione x
            dc.w     -98<<6                   ; posizione y
            dc.w     0<<6                     ; player.v
@@ -199,6 +207,7 @@ team_inter:
            dc.w     0                        ; player.selected
            dc.w     0                        ; player.kick_angle
            dc.w     1                        ; player.shoot_bar_anim
+           dc.w     0                        ; player.ball_distance
 .player9   dc.w     -20<<6                   ; posizione x
            dc.w     -112<<6                  ; posizione y
            dc.w     0<<6                     ; player.v
@@ -222,6 +231,7 @@ team_inter:
            dc.w     0                        ; player.selected
            dc.w     0                        ; player.kick_angle
            dc.w     1                        ; player.shoot_bar_anim
+           dc.w     0                        ; player.ball_distance
 .player10  dc.w     -20<<6                   ; posizione x
            dc.w     -126<<6                  ; posizione y
            dc.w     0<<6                     ; player.v
@@ -245,6 +255,7 @@ team_inter:
            dc.w     0                        ; player.selected
            dc.w     0                        ; player.kick_angle
            dc.w     1                        ; player.shoot_bar_anim
+           dc.w     0                        ; player.ball_distance
 .player11  dc.w     -20<<6                   ; posizione x
            dc.w     -140<<6                  ; posizione y
            dc.w     0<<6                     ; player.v
@@ -268,3 +279,4 @@ team_inter:
            dc.w     0                        ; player.selected
            dc.w     0                        ; player.kick_angle
            dc.w     1                        ; player.shoot_bar_anim
+           dc.w     0                        ; player.ball_distance

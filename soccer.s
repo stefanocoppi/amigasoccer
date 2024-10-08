@@ -98,6 +98,7 @@ player.side            rs.w       1                                             
 player.selected        rs.w       1                                                         ; 1 indica che è selezionato per essere controllato, 0 altrimenti
 player.kick_angle      rs.w       1                                                         ; angolo di tiro (0-359, in formato fixed 10.6)
 player.shoot_bar_anim  rs.w       1                                                         ; frame di animazione della shoot bar
+player.ball_distance   rs.w       1                                                         ; distanza dalla palla al quadrato (in formato fixed 10.6)
 player.length          rs.b       0
 
 
@@ -134,6 +135,7 @@ ball.length            rs.b       0
 team.name              rs.b       16
 team.short_name        rs.b       4
 team.side              rs.w       1                                                         ; indica la propria area: -1 sopra, 1 sotto
+team.near_ball         rs.l       1                                                         ; indirizzo del calciatore più vicino alla palla
 team.players           rs.b       player.length * NUM_PLAYERS_PER_TEAM
 team.length            rs.b       0
 
@@ -173,9 +175,13 @@ wait:
                        bsr        swap_buffers
                        bsr        read_joy
                        bsr        ball_update
+                       move.l     home_team,a1
                        bsr        team_update
+                       bsr        team_select_nearest
+
                        bsr        update_camera
                        bsr        draw_pitch
+                       move.l     home_team,a1
                        bsr        team_draw
                        bsr        ball_draw
                        ;bsr        test_font
@@ -726,6 +732,13 @@ player_update:
                        add.w      d0,player.y(a0)                                           ; y = y + v * sin(a) 
                        bsr        player_update_input
                        bsr        player_process_state
+                       lea        ball,a1                                                   ; calcola la distanza dalla palla
+                       move.w     ball.x(a1),d0
+                       move.w     ball.y(a1),d1
+                       move.w     player.x(a0),d2
+                       move.w     player.y(a0),d3
+                       bsr        calc_dist
+                       move.w     d2,player.ball_distance(a0)
                        movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
@@ -759,6 +772,8 @@ player_update_input:
                        move.w     player.inputtype(a0),d0
                        cmp.w      #INPUT_TYPE_JOY,d0                                        ; l'input_type è joystick?
                        beq        .joy
+                       cmp.w      #INPUT_TYPE_AI,d0                                         ; l'input_type è AI?
+                       beq        .ai
                        bra        .return
 .joy:
                       ; in base allo stato del joystick, imposta angolo e value dell'input_device del calciatore
@@ -836,6 +851,9 @@ player_update_input:
                        bra        .return
 .set_fire3:
                        move.w     #1,inputdevice.fire3(a1)
+                       bra        .return
+.ai:
+                       move.w     #0,inputdevice.value(a1)
 .return:
                        movem.l    (sp)+,d0-d7/a0-a6
                        rts
@@ -1759,11 +1777,13 @@ test_font:
 
 ;**************************************************************************************************************************************************************************
 ; Disegna tutti i calciatori di una squadra
+;
+; parametri:
+; a1 - punta alla struttura dati della squadra
 ;**************************************************************************************************************************************************************************
 team_draw:
                        movem.l    d0-d7/a0-a6,-(sp)
 
-                       move.l     home_team,a1
                        lea        team.players(a1),a0 
                        moveq      #11-1,d7
 .loop:
@@ -1777,17 +1797,83 @@ team_draw:
 
 ;**************************************************************************************************************************************************************************
 ; Aggiorna lo stato di tutti i calciatori di una squadra
+;
+; parametri:
+; a1 - punta alla struttura dati della squadra
 ;**************************************************************************************************************************************************************************
 team_update:
                        movem.l    d0-d7/a0-a6,-(sp)
 
-                       move.l     home_team,a1
                        lea        team.players(a1),a0 
                        moveq      #11-1,d7
 .loop:
                        bsr        player_update
                        add.l      #player.length,a0
                        dbra       d7,.loop
+
+.return                movem.l    (sp)+,d0-d7/a0-a6
+                       rts
+
+
+;**************************************************************************************************************************************************************************
+; Trova il calciatore più vicino alla palla
+;
+; parametri:
+; a1 - punta alla struttura dati della squadra
+;**************************************************************************************************************************************************************************
+team_find_nearest:
+                       movem.l    d0-d7/a0-a6,-(sp)
+
+                       lea        team.players(a1),a0 
+                       move.l     a0,team.near_ball(a1)                                     ; team.near_ball = team.players[0]
+                       moveq      #11-1,d7
+.loop:
+                       move.w     player.ball_distance(a0),d0
+                       move.l     team.near_ball(a1),a2
+                       move.w     player.ball_distance(a2),d1
+                       cmp.w      d1,d0                                                     ; player.ball_distance < near.ball_distance?
+                       blo        .set_new_near
+                       bra        .continue
+.set_new_near:
+                       move.l     a0,team.near_ball(a1)                                     ; team.near_ball = player
+.continue:
+                       add.l      #player.length,a0
+                       dbra       d7,.loop
+
+                       move.l     team.near_ball(a1),d0 
+
+.return                movem.l    (sp)+,d0-d7/a0-a6
+                       rts
+
+
+;**************************************************************************************************************************************************************************
+; Seleziona il calciatore più vicino alla palla, affidando il controllo al giocatore
+;
+; parametri:
+; a1 - punta alla struttura dati della squadra
+;**************************************************************************************************************************************************************************
+team_select_nearest:
+                       movem.l    d0-d7/a0-a6,-(sp)
+
+                       bsr        team_find_nearest                                         ; trova il calciatore più vicino alla palla
+                       move.l     team.near_ball(a1),a2 
+
+                       lea        team.players(a1),a0                                       ; trova il calciatore selezionato
+                       moveq      #11-1,d7
+.loop:
+                       move.w     player.selected(a0),d0
+                       tst.w      d0
+                       bne        .selected
+                       bra        .continue
+.continue:
+                       add.l      #player.length,a0
+                       dbra       d7,.loop
+.selected:
+                       move.w     #0,player.selected(a0)
+                       move.w     #INPUT_TYPE_AI,player.inputtype(a0)
+                       move.l     team.near_ball(a1),a2
+                       move.w     #1,player.selected(a2)
+                       move.w     #INPUT_TYPE_JOY,player.inputtype(a2)
 
 .return                movem.l    (sp)+,d0-d7/a0-a6
                        rts
@@ -1839,7 +1925,7 @@ player0                dc.w       -20<<6                                        
                        dc.w       1                                                         ; player.shoot_bar_anim
 
 ball                   dc.w       10<<6                                                     ; ball.x
-                       dc.w       0<<6                                                      ; ball.y
+                       dc.w       -50<<6                                                    ; ball.y
                        dc.w       0<<6                                                      ; ball.z
                        dc.w       0<<6                                                      ; ball.v
                        dc.w       0<<6                                                      ; ball.vz 19
