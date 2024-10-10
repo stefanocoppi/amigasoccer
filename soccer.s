@@ -1839,9 +1839,7 @@ team_find_nearest:
 .continue:
                        add.l      #player.length,a0
                        dbra       d7,.loop
-
-                       move.l     team.near_ball(a1),d0 
-
+  
 .return                movem.l    (sp)+,d0-d7/a0-a6
                        rts
 
